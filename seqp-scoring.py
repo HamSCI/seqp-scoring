@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from datetime import datetime as dt
 import numpy as np
 import pandas as pd
@@ -58,48 +59,9 @@ def load(call):
                 continue
 
 # Read in a CSV through Pandas.
-csv_in = pd.read_csv('seqp_all_ctyChecked.csv')
+df = pd.read_csv('seqp_all_ctyChecked.csv.bz2',parse_dates=['datetime'])
 
-# Create an output Pandas DataFrame.
-csv_out = pd.DataFrame(columns = [
-    'call',
-    'qso_vox', 'qso_dig', 'qso_all',
-    'gs_1.8', 'gs_3.5', 'gs_7', 'gs_14', 'gs_21', 'gs_28', 'gs_all',
-    'score'
-])
-print('Finished initializations...')
+tf      = df['source'] == 'seqp_logs'
+df_seqp = df[tf].copy()
 
-# Set the location (row/index) counter equal to 0.
-global loc_counter
-loc_counter = 0
-
-# Calculate a score for Rule 1:
-# Use the is_valid function to check if the entry is valid.
-# Use the load function to check if the callsign has been loaded.
-# Award points to the callsign accordingly.
-for idx, row in csv_in.iterrows():
-    if row['mode'] == 'PH':
-        print('Starting judgement for', idx, row['mode'])
-        if is_valid('PH', row['call_0'], row['call_1'],
-        row['band'], row['datetime']):
-            loc_call = load(row['call_0'])
-            csv_out.ix[loc_call, 'qso_vox'] += 1
-            csv_out.ix[loc_call, 'qso_all'] += 1
-            print(csv_out)
-    elif row['mode'] != 'WSPR':
-        print('Starting judgement for', idx, row['mode'])
-        if is_valid(row['mode'], row['call_0'], row['call_1'], 
-        row['band'], row['datetime']):
-            loc_call = load(row['call_0'])
-            csv_out.ix[loc_call, 'qso_dig'] += 2
-            csv_out.ix[loc_call, 'qso_all'] += 2
-            print(csv_out)
-
-# To-do:
-    # Vectorize
-    # Rule 2
-
-# For loop for every submitted callsign or
-# For loop for every band
-# Group based on mode
-# Duplicate QSOs ... timedelta between all duplicate qsos. Throw away the invalid QSOs.
+import ipdb; ipdb.set_trace()
