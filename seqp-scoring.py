@@ -63,5 +63,17 @@ df = pd.read_csv('seqp_all_ctyChecked.csv.bz2',parse_dates=['datetime'])
 
 tf      = df['source'] == 'seqp_logs'
 df_seqp = df[tf].copy()
+calls   = df_seqp['call_0'].unique()
 
-import ipdb; ipdb.set_trace()
+#array(['CW', 'FT', 'PH', 'RY', 'JT', 'PK', 'OT', 'PS', 'DI', 'PSK31', 'DG',
+#           'JT65', 'FM', 'HE', 'FT8', 'BP', 'US', 'RT', 'SSB', 'DA', 'SS', 'VO'], dtype=object)
+
+valid_phone = ['PH','SSB']
+valid_cwdig = ['PSK31','CW','FT8','JT65']
+
+score_list  = []
+for call in calls:
+    tf  = df_seqp['call_0'] == call
+    qs  = df_seqp[tf].copy()
+
+    import ipdb; ipdb.set_trace()
