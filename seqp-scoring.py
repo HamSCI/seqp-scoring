@@ -7,6 +7,12 @@ import pandas as pd
 import re
 import time
 
+from collections import OrderedDict
+
+import tqdm
+
+bands   = [1,3,7,14,21,28,50]
+
 # -----------------------------------------------------------------------------
 # Define a grid square (regex) matching function to confirm valid grid squares.
 # -----------------------------------------------------------------------------
@@ -96,22 +102,23 @@ print('Duplicate removal complete...')
 # then, create a new DataFrame with the unique callsigns from column call_0.
 # -----------------------------------------------------------------------------
 
-df_seqp.sort_values(by = ['call_0', 'call_1', 'datetime']).reset_index(drop = True, inplace = True)
-unique_calls = df_seqp['call_0'].unique()
-df_out = pd.DataFrame(columns = ['call', 'qso_cw', 'qso_ph', 'gs_1.8', 'gs_3.5', 'gs_7', 'gs_14', 'gs_21', 'gs_28'])
+df_seqp.sort_values(by  = ['call_0', 'call_1', 'datetime']).reset_index(drop = True, inplace = True)
+unique_calls            = df_seqp['call_0'].unique()
 
+df_list = []
 for call in unique_calls:
-    df_out = df_out.append({
-        'call':     call,
-        'qso_cw':   0,
-        'qso_ph':   0,
-        'gs_1.8':   0,
-        'gs_3.5':   0,
-        'gs_7':     0,
-        'gs_14':    0,
-        'gs_21':    0,
-        'gs_28':    0,
-    }, ignore_index = True)
+    if pd.isnull(call): continue
+    row_dct = OrderedDict()
+    row_dct['call']     = call
+    row_dct['qso_cw']   = 0
+    row_dct['qso_ph']   = 0
+
+    for band in bands:
+        key = 'gs_{:d}'.format(band)
+        row_dct[key]    = 0
+
+    df_list.append(row_dct)
+df_out  = pd.DataFrame(df_list)
 
 print('Output DataFrame created...')
 
@@ -160,5 +167,22 @@ for idx_a, row_a in df_out.iterrows():
     for idx_b, row_b in df_seqp.iloc[last_c:].iterrows():
 '''
 
-df_out.sort_values(by = 'qso_cw').reset_index(drop = True, inplace = True)
+df_out  = df_out.sort_values(by = 'qso_cw').reset_index(drop = True)
+
+print('Computing Grid Square Counts...')
+for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
+    call = row['call']
+    if pd.isnull(call):
+        continue
+    for band in bands:
+       tf       = np.logical_and(df_seqp['call_0'] == call, df_seqp['band'] == band)
+       df_tmp   = df_seqp[tf]
+       if len(df_tmp) == 0:
+           continue
+
+       gs   = len(df_tmp['grid_4char'].unique())
+       key = 'gs_{:d}'.format(band)
+       df_out.loc[rinx,key] = gs
+
+import ipdb; ipdb.set_trace()
 print(df_out)
