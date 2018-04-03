@@ -160,4 +160,5 @@ for idx_a, row_a in df_out.iterrows():
     for idx_b, row_b in df_seqp.iloc[last_c:].iterrows():
 '''
 
-print(df_seqp)
+df_out.sort_values(by = 'qso_cw').reset_index(drop = True, inplace = True)
+print(df_out)
