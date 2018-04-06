@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # import ipdb; ipdb.set_trace()
+# import tqdm
 
+from collections import OrderedDict
 from datetime import datetime as dt
 import numpy as np
 import pandas as pd
 import re
 import time
-
-from collections import OrderedDict
-
-import tqdm
 
 bands   = [1,3,7,14,21,28,50]
 
@@ -39,7 +37,7 @@ print('CSV read in complete...')
 # mode, band, datetime, grid_0, grid_1. Then, reset the indexes.
 # -----------------------------------------------------------------------------
 
-for idx, row in df_seqp.iterrows(): # @here, pd.isnull()
+for idx, row in df_seqp.iterrows():
     if idx + 1 == df_seqp.shape[0]:
         break
     elif (pd.isnull(row['call_0']) or
@@ -133,7 +131,8 @@ for idx_a, row_a in df_out.iterrows():
         last_b = idx_b
         if row_a['call'] != row_b['call_0']:
             break
-        elif row['mode'] == 'PH':
+        elif (row_b['mode'] == 'PH' or
+            row_b['mode'] == 'SSB'):
             df_out.ix[idx_a, 'qso_ph'] += 1
         else:
             df_out.ix[idx_a, 'qso_cw'] += 2
@@ -152,37 +151,39 @@ for idx, row in df_seqp.iterrows():
 
 df_seqp['grid_4char'] = grid_4char
 
+print('Completed grid square parsing...')
+
 # -----------------------------------------------------------------------------
 # RULE 2: 4-character grid squares are counted once per band.
 # -----------------------------------------------------------------------------
-# TO-DO:
-# Above ~ isnull not working? see @here
-# Check if next call is different.
-# How many qsos per call-band.
-# Use that as a range to check unique grids in that range and add the amount accordingly.
 
 df_seqp.sort_values(by = ['call_0', 'band', 'grid_4char']).reset_index(drop = True, inplace = True)
-'''
-for idx_a, row_a in df_out.iterrows():
-    for idx_b, row_b in df_seqp.iloc[last_c:].iterrows():
-'''
 
-df_out  = df_out.sort_values(by = 'qso_cw').reset_index(drop = True)
-
-print('Computing Grid Square Counts...')
-for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
+for rinx, row in df_out.iterrows():
     call = row['call']
     if pd.isnull(call):
         continue
     for band in bands:
-       tf       = np.logical_and(df_seqp['call_0'] == call, df_seqp['band'] == band)
-       df_tmp   = df_seqp[tf]
+       tf = np.logical_and(df_seqp['call_0'] == call, df_seqp['band'] == band)
+       df_tmp = df_seqp[tf]
        if len(df_tmp) == 0:
            continue
 
-       gs   = len(df_tmp['grid_4char'].unique())
+       gs = len(df_tmp['grid_4char'].unique())
        key = 'gs_{:d}'.format(band)
        df_out.loc[rinx,key] = gs
 
-import ipdb; ipdb.set_trace()
-print(df_out)
+print('Completed scoring for Rule 2...')
+
+# -----------------------------------------------------------------------------
+# Finish calculating grand totals, and export accordingly.
+# -----------------------------------------------------------------------------
+
+df_out['total_qso'] = df_out['qso_cw'] + df_out['qso_ph']
+df_out['total_gs']  = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
+df_out['gs_14'] + df_out['gs_21'] + df_out['gs_28'] + df_out['gs_50']
+df_out['total']     = df_out['total_qso'] * df_out['total_gs']
+
+df_out.to_csv('seqp_scores.csv')
+
+print('Output CSV exported successfully!')
