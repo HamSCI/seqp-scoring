@@ -30,6 +30,13 @@ df      = pd.read_csv('seqp_all_ctyChecked.csv.bz2', parse_dates = ['datetime'])
 tf      = df['source'] == 'seqp_logs'
 df_seqp = df[tf].copy().sort_values(by = ['call_0', 'call_1', 'mode', 'band', 'datetime']).reset_index(drop = True)
 
+call_0s     = df_seqp['call_0'].unique()
+sub_qsos    = []
+for call_0 in call_0s:
+    tf  = df_seqp['call_0'] == call_0
+    sub_qsos.append(np.count_nonzero(tf))
+df_submitted_qsos   = pd.DataFrame({'raw_qsos':sub_qsos},index=call_0s)
+
 print('CSV read in complete...')
 
 # -----------------------------------------------------------------------------
