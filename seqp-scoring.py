@@ -9,7 +9,7 @@ import time
 # Miscellaneous variable/function declarations go here...
 # -----------------------------------------------------------------------------
 
-bands = [1, 3, 7, 14, 21, 28, 50]
+bands       = [1, 3, 7, 14, 21, 28, 50]
 
 # -----------------------------------------------------------------------------
 # Define a grid square (regex) matching function to confirm valid grid squares.
@@ -33,20 +33,8 @@ df_seqp = df[tf].copy().sort_values(by = ['call_0', 'call_1', 'mode', 'band', 'd
 print('CSV read in complete...')
 
 # -----------------------------------------------------------------------------
-# Compute the number of submitted QSOs per callsign.
-# -----------------------------------------------------------------------------
-
-call_0s     = df_seqp['call_0'].unique()
-sub_qsos    = []
-for call_0 in call_0s:
-    tf  = df_seqp['call_0'] == call_0
-    sub_qsos.append(np.count_nonzero(tf))
-df_submitted_qsos = pd.DataFrame({'qsos_submitted':sub_qsos},index=call_0s)
-
-print('Number of QSOs computed...')
-
-# -----------------------------------------------------------------------------
 # Create a new DataFrame with the unique callsigns from column call_0.
+# Additionally, compute the number of submitted QSOs per callsign.
 # -----------------------------------------------------------------------------
 
 unique_calls = df_seqp['call_0'].unique()
@@ -63,6 +51,7 @@ for call in unique_calls:
     for band in bands:
         key = 'gs_{:d}'.format(band)
         row_dct[key]            = 0
+    row_dct['qsos_submitted']   = np.count_nonzero(df_seqp['call_0'] == call)
 
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
@@ -195,19 +184,17 @@ print('Completed scoring for Rule 2...')
 # -----------------------------------------------------------------------------
 
 df_out['total_qso_pts'] = df_out['cw_qso_pts'] + df_out['ph_qso_pts']
-df_out['qsos_valid'] = df_out['cw_qso'] + df_out['ph_qso']
-df_out['total_gs'] = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
-df_out['gs_14'] + df_out['gs_21'] + df_out['gs_28'] + df_out['gs_50']
-df_out['total'] = df_out['total_qso_pts'] * df_out['total_gs']
-df_out['qsos_dropped'] = df_out['qsos_submitted'] - df_out['qsos_valid']
-df_out['qsos_valid'] = df_out['qsos_submitted'] - df_out['qsos_dropped']
+df_out['qsos_valid']    = df_out['cw_qso'] + df_out['ph_qso']
+df_out['total_gs']      = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
+                          df_out['gs_14'] + df_out['gs_21'] + \
+                          df_out['gs_28'] + df_out['gs_50']
+df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs']
+df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
 df_out = df_out[[
-    'cw_qso_pts', 'ph_qso_pts', 'total_qso_pts',
-    'cw_qso', 'ph_qso',
+    'call', 'cw_qso_pts', 'ph_qso_pts', 'total_qso_pts', 'cw_qso', 'ph_qso',
     'gs_1', 'gs_3', 'gs_7', 'gs_14', 'gs_21', 'gs_28', 'gs_50',
-    'total_gs', 'total',
-    'qsos_submitted', 'qsos_dropped', 'qsos_valid'
+    'total_gs', 'total', 'qsos_submitted', 'qsos_dropped', 'qsos_valid'
 ]]
 
 df_out.to_csv('seqp_scores.csv')
