@@ -30,29 +30,20 @@ df      = pd.read_csv('seqp_all_ctyChecked.csv.bz2', parse_dates = ['datetime'])
 tf      = df['source'] == 'seqp_logs'
 df_seqp = df[tf].copy().sort_values(by = ['call_0', 'call_1', 'mode', 'band', 'datetime']).reset_index(drop = True)
 
+print('CSV read in complete...')
+
+# -----------------------------------------------------------------------------
+# Compute the number of submitted QSOs per callsign.
+# -----------------------------------------------------------------------------
+
 call_0s     = df_seqp['call_0'].unique()
 sub_qsos    = []
 for call_0 in call_0s:
     tf  = df_seqp['call_0'] == call_0
     sub_qsos.append(np.count_nonzero(tf))
-df_submitted_qsos   = pd.DataFrame({'raw_qsos':sub_qsos},index=call_0s)
+df_submitted_qsos = pd.DataFrame({'qsos_submitted':sub_qsos},index=call_0s)
 
-print('CSV read in complete...')
-
-# -----------------------------------------------------------------------------
-# Drop any QSO without any data for call_0. Assign a variable to the number of
-# all QSOs dropped in this section, for use during export of the output CSV.
-# -----------------------------------------------------------------------------
-
-for idx, row in df_seqp.iterrows():
-    if idx + 1 == df_seqp.shape[0]:
-        break
-    elif pd.isnull(row['call_0']):
-        df_seqp.drop(df_seqp.index[idx], inplace = True)
-
-df_seqp.reset_index(drop = True, inplace = True)
-
-print('NaN removal for call_0 complete...')
+print('Number of QSOs computed...')
 
 # -----------------------------------------------------------------------------
 # Create a new DataFrame with the unique callsigns from column call_0.
@@ -72,22 +63,11 @@ for call in unique_calls:
     for band in bands:
         key = 'gs_{:d}'.format(band)
         row_dct[key]            = 0
-    row_dct['qsos_dropped']     = 0
 
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
 
 print('Output DataFrame created...')
-
-# -----------------------------------------------------------------------------
-# Compute the number of submitted QSOs per callsign.
-# -----------------------------------------------------------------------------
-
-tf_qsos = pd.DataFrame({'qsos_submitted': df_seqp.groupby('call_0')['call_0'].count()})
-df_out = df_out.join(tf_qsos)
-
-print(df_out)
-print('Number of QSOs computed...')
 
 # -----------------------------------------------------------------------------
 # Remove any QSOs that are missing/invalid for the following: call_1, mode, 
@@ -98,7 +78,8 @@ print('Number of QSOs computed...')
 for idx, row in df_seqp.iterrows():
     if idx + 1 == df_seqp.shape[0]:
         break
-    elif (pd.isnull(row['call_1']) or
+    elif (pd.isnull(row['call_0']) or
+    pd.isnull(row['call_1']) or
     pd.isnull(row['mode']) or
     pd.isnull(row['band']) or
     pd.isnull(row['datetime']) or
@@ -108,12 +89,11 @@ for idx, row in df_seqp.iterrows():
     len(row['grid_1']) < 4 or
     grid_nomatch(row['grid_0']) or
     grid_nomatch(row['grid_1'])):
-        # dropped_qsos (for this callsign) += 1
         df_seqp.drop(df_seqp.index[idx], inplace = True)
 
 df_seqp.reset_index(drop = True, inplace = True)
 
-print('NaN removal for remaining columns complete...')
+print('NaN removal complete...')
 
 # -----------------------------------------------------------------------------
 # Check to see if the next QSO has similar callsigns, a similar band and mode,
@@ -146,7 +126,6 @@ while drop == True:
                 row_a['mode'] == row_b['mode'] and
                 row_a['band'] == row_b['band'] and
                 (row_b['datetime'] - row_a['datetime']).seconds < 600):
-                    # dropped_qsos (for this callsign) += 1
                     df_seqp.drop(df_seqp.index[idx_b], inplace = True)
                 else:
                     break
@@ -216,18 +195,19 @@ print('Completed scoring for Rule 2...')
 # -----------------------------------------------------------------------------
 
 df_out['total_qso_pts'] = df_out['cw_qso_pts'] + df_out['ph_qso_pts']
-df_out['total_qso'] = df_out['cw_qso'] + df_out['ph_qso']
+df_out['qsos_valid'] = df_out['cw_qso'] + df_out['ph_qso']
 df_out['total_gs'] = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
 df_out['gs_14'] + df_out['gs_21'] + df_out['gs_28'] + df_out['gs_50']
 df_out['total'] = df_out['total_qso_pts'] * df_out['total_gs']
-df_out['valid_qsos'] = df_out['qsos_submitted'] - df_out['qsos_dropped']
+df_out['qsos_dropped'] = df_out['qsos_submitted'] - df_out['qsos_valid']
+df_out['qsos_valid'] = df_out['qsos_submitted'] - df_out['qsos_dropped']
 
 df_out = df_out[[
     'cw_qso_pts', 'ph_qso_pts', 'total_qso_pts',
-    'cw_qso', 'ph_qso', 'total_qso',
+    'cw_qso', 'ph_qso',
     'gs_1', 'gs_3', 'gs_7', 'gs_14', 'gs_21', 'gs_28', 'gs_50',
     'total_gs', 'total',
-    'qsos_submitted', 'qsos_dropped', 'valid_qsos'
+    'qsos_submitted', 'qsos_dropped', 'qsos_valid'
 ]]
 
 df_out.to_csv('seqp_scores.csv')
