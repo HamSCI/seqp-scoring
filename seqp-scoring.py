@@ -5,6 +5,8 @@ import pandas as pd
 import re
 import time
 
+pd.set_option('display.width', 1000)
+
 # -----------------------------------------------------------------------------
 # Miscellaneous variable/function declarations go here...
 # -----------------------------------------------------------------------------
@@ -191,12 +193,28 @@ df_out['total_gs']      = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
 df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
-df_out = df_out[[
-    'call', 'cw_qso_pts', 'ph_qso_pts', 'total_qso_pts', 'cw_qso', 'ph_qso',
-    'gs_1', 'gs_3', 'gs_7', 'gs_14', 'gs_21', 'gs_28', 'gs_50',
-    'total_gs', 'total', 'qsos_submitted', 'qsos_dropped', 'qsos_valid'
-]]
 
-df_out.to_csv('seqp_scores.csv')
+keys    = []
+keys.append('call')
+keys.append('qsos_submitted')
+keys.append('qsos_dropped')
+keys.append('qsos_valid')
+keys.append('cw_qso')
+keys.append('cw_qso_pts')
+keys.append('ph_qso',)
+keys.append('ph_qso_pts')
+keys.append('total_qso_pts')
+keys.append('gs_1')
+keys.append('gs_3')
+keys.append('gs_7')
+keys.append('gs_14')
+keys.append('gs_21')
+keys.append('gs_28')
+keys.append('gs_50',)
+keys.append('total_gs')
+keys.append('total')
+
+df_out = df_out[keys].copy()
+df_out.to_csv('seqp_scores.csv',index=False)
 
 print('Output CSV exported successfully!')
