@@ -212,6 +212,10 @@ keys.append('gs_21')
 keys.append('gs_28')
 keys.append('gs_50',)
 keys.append('total_gs')
+
+#keys.append('ground_conductivity')
+
+
 keys.append('total')
 
 df_out = df_out[keys].copy()
