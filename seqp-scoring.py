@@ -28,8 +28,7 @@ def grid_nomatch(gs):
 # Define an SQL query function to return the data in some row.
 # -----------------------------------------------------------------------------
 
-def query(row):
-    qry = ("SELECT callsign, " + row + " FROM seqp_submissions ")
+def query(qry):
     crsr = db.cursor()
     crsr.execute(qry)
     return crsr.fetchall()
@@ -69,6 +68,7 @@ for call in unique_calls:
     row_dct['operated_outdoors']    = 0
     row_dct['operated_public']      = 0
     row_dct['ground_conductivity']  = 0
+    row_dct['antenna_design']       = 0
 
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
@@ -220,11 +220,12 @@ db          = mysql.connector.connect(user=user,password=password,host=host,data
 print('SQL database loaded...')
 
 # -----------------------------------------------------------------------------
-# BONUS 4: Add 50 points if the ground conductivity in the SQL table is not 0.
+# BONUS 4: Add 50 points if the ground conductivity for a callsign in the SQL
+# table is not 0.
 # -----------------------------------------------------------------------------
 
 for idx, row in df_out.iterrows():
-    for result in query('ground_conductivity'):
+    for result in query('SELECT callsign, ground_conductivity FROM seqp_submissions'):
         if (result[0] == row['call'] and
             result[1] != 0.0):
             df_out.ix[idx, 'ground_conductivity'] = 50
@@ -232,14 +233,22 @@ for idx, row in df_out.iterrows():
 print('Completed scoring for Bonus 4...')
 
 # -----------------------------------------------------------------------------
-# BONUS 5:
-# Check dsn_fname for existance of DSN.
+# BONUS 5: Add 100 points if a filename exists for a callsign in the SQL table.
+# Create blacklist
 # -----------------------------------------------------------------------------
+
+for idx, row in df_out.iterrows():
+    for result in query('SELECT callsign, dsn_fname FROM seqp_submissions'):
+        if (result[0] == row['call'] and
+            result[1] != None):
+            df_out.ix[idx, 'antenna_design'] = 100
+
+print('Completed scoring for Bonus 5...')
 
 # -----------------------------------------------------------------------------
 # BONUS 6:
 # ERP+50 if != 0
-# Per number of bands on all antennas.
+# Per number of bands on all antennas (concat)
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -255,7 +264,8 @@ df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
                           df_out['operated_totality'] + \
                           df_out['operated_outdoors'] + \
                           df_out['operated_public'] + \
-                          df_out['ground_conductivity']
+                          df_out['ground_conductivity'] + \
+                          df_out['antenna_design']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
 print('Completed scoring summations...')
@@ -286,6 +296,7 @@ keys.append('operated_totality')
 keys.append('operated_outdoors')
 keys.append('operated_public')
 keys.append('ground_conductivity')
+keys.append('antenna_design')
 keys.append('total')
 
 print('Columns reorganized...')
