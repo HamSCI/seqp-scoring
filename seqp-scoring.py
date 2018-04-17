@@ -1,17 +1,17 @@
 from collections import OrderedDict
 from datetime import datetime as dt
+import mysql.connector
 import numpy as np
 import pandas as pd
 import re
 import time
 
-pd.set_option('display.width', 1000)
-
 # -----------------------------------------------------------------------------
 # Miscellaneous variable/function declarations go here...
 # -----------------------------------------------------------------------------
 
-bands       = [1, 3, 7, 14, 21, 28, 50]
+bands = [1, 3, 7, 14, 21, 28, 50]
+pd.set_option('display.width', 1000)
 
 # -----------------------------------------------------------------------------
 # Define a grid square (regex) matching function to confirm valid grid squares.
@@ -23,6 +23,17 @@ def grid_nomatch(gs):
         return False
     else:
         return True
+
+# -----------------------------------------------------------------------------
+# Define an SQL query function to return the data in some row.
+# -----------------------------------------------------------------------------
+
+def query(row):
+    qry = ("SELECT callsign, " + row + " FROM seqp_submissions ")
+    crsr = db.cursor()
+    crsr.execute(qry)
+    return crsr.fetchall()
+    crsr.close()
 
 # -----------------------------------------------------------------------------
 # Read in a CSV, remove any QSOs not from seqp_logs, then sort the QSOs.
@@ -45,15 +56,16 @@ df_list = []
 for call in unique_calls:
     if pd.isnull(call): continue
     row_dct = OrderedDict()
-    row_dct['call']             = call
-    row_dct['cw_qso_pts']       = 0
-    row_dct['ph_qso_pts']       = 0
-    row_dct['cw_qso']           = 0
-    row_dct['ph_qso']           = 0
+    row_dct['call']                 = call
+    row_dct['cw_qso_pts']           = 0
+    row_dct['ph_qso_pts']           = 0
+    row_dct['cw_qso']               = 0
+    row_dct['ph_qso']               = 0
     for band in bands:
         key = 'gs_{:d}'.format(band)
-        row_dct[key]            = 0
-    row_dct['qsos_submitted']   = np.count_nonzero(df_seqp['call_0'] == call)
+        row_dct[key]                = 0
+    row_dct['qsos_submitted']       = np.count_nonzero(df_seqp['call_0'] == call)
+    row_dct['ground_conductivity']  = 0
 
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
@@ -182,6 +194,30 @@ for rinx, row in df_out.iterrows():
 print('Completed scoring for Rule 2...')
 
 # -----------------------------------------------------------------------------
+# Load in the hamsci_rsrch database.
+# -----------------------------------------------------------------------------
+
+user        = 'hamsci'
+password    = 'hamsci'
+host        = 'localhost'
+database    = 'hamsci_rsrch'
+db          = mysql.connector.connect(user=user,password=password,host=host,database=database,buffered=True)
+
+print('SQL database loaded...')
+
+# -----------------------------------------------------------------------------
+# BONUS 4: Add 50 points if the ground conductivity in the SQL table is not 0.
+# -----------------------------------------------------------------------------
+
+for idx, row in df_out.iterrows():
+    for result in query('ground_conductivity'):
+        if (result[0] == row['call'] and
+            result[1] != 0.0):
+            df_out.ix[idx, 'ground_conductivity'] = 50
+
+print('Completed scoring for Bonus 4...')
+
+# -----------------------------------------------------------------------------
 # Finish calculating grand totals, reorganize columns, and export accordingly.
 # -----------------------------------------------------------------------------
 
@@ -190,11 +226,11 @@ df_out['qsos_valid']    = df_out['cw_qso'] + df_out['ph_qso']
 df_out['total_gs']      = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
                           df_out['gs_14'] + df_out['gs_21'] + \
                           df_out['gs_28'] + df_out['gs_50']
-df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs']
+df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
+                          df_out['ground_conductivity']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
-
-keys    = []
+keys = []
 keys.append('call')
 keys.append('qsos_submitted')
 keys.append('qsos_dropped')
@@ -212,10 +248,7 @@ keys.append('gs_21')
 keys.append('gs_28')
 keys.append('gs_50',)
 keys.append('total_gs')
-
-#keys.append('ground_conductivity')
-
-
+keys.append('ground_conductivity')
 keys.append('total')
 
 df_out = df_out[keys].copy()
