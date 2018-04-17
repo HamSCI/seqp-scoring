@@ -65,6 +65,9 @@ for call in unique_calls:
         key = 'gs_{:d}'.format(band)
         row_dct[key]                = 0
     row_dct['qsos_submitted']       = np.count_nonzero(df_seqp['call_0'] == call)
+    row_dct['operated_totality']    = 0
+    row_dct['operated_outdoors']    = 0
+    row_dct['operated_public']      = 0
     row_dct['ground_conductivity']  = 0
 
     df_list.append(row_dct)
@@ -194,6 +197,17 @@ for rinx, row in df_out.iterrows():
 print('Completed scoring for Rule 2...')
 
 # -----------------------------------------------------------------------------
+# BONUS 1-3: Add 100 * 3 points to any callsign listed in df_out.
+# -----------------------------------------------------------------------------
+
+for idx, row in df_out.iterrows():
+    df_out.ix[idx, 'operated_totality'] = 100
+    df_out.ix[idx, 'operated_outdoors'] = 100
+    df_out.ix[idx, 'operated_public']   = 100
+
+print('Completed scoring for Bonuses 1-3...')
+
+# -----------------------------------------------------------------------------
 # Load in the hamsci_rsrch database.
 # -----------------------------------------------------------------------------
 
@@ -218,7 +232,18 @@ for idx, row in df_out.iterrows():
 print('Completed scoring for Bonus 4...')
 
 # -----------------------------------------------------------------------------
-# Finish calculating grand totals, reorganize columns, and export accordingly.
+# BONUS 5:
+# Check dsn_fname for existance of DSN.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# BONUS 6:
+# ERP+50 if != 0
+# Per number of bands on all antennas.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Finish calculating grand totals.
 # -----------------------------------------------------------------------------
 
 df_out['total_qso_pts'] = df_out['cw_qso_pts'] + df_out['ph_qso_pts']
@@ -227,8 +252,17 @@ df_out['total_gs']      = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
                           df_out['gs_14'] + df_out['gs_21'] + \
                           df_out['gs_28'] + df_out['gs_50']
 df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
+                          df_out['operated_totality'] + \
+                          df_out['operated_outdoors'] + \
+                          df_out['operated_public'] + \
                           df_out['ground_conductivity']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
+
+print('Completed scoring summations...')
+
+# -----------------------------------------------------------------------------
+# Reorganize columns for proper readability.
+# -----------------------------------------------------------------------------
 
 keys = []
 keys.append('call')
@@ -248,8 +282,17 @@ keys.append('gs_21')
 keys.append('gs_28')
 keys.append('gs_50',)
 keys.append('total_gs')
+keys.append('operated_totality')
+keys.append('operated_outdoors')
+keys.append('operated_public')
 keys.append('ground_conductivity')
 keys.append('total')
+
+print('Columns reorganized...')
+
+# -----------------------------------------------------------------------------
+# Export the DataFrame to a CSV file, 'seqp_scores.csv'.
+# -----------------------------------------------------------------------------
 
 df_out = df_out[keys].copy()
 df_out.to_csv('seqp_scores.csv',index=False)
