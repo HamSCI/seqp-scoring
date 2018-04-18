@@ -28,8 +28,7 @@ def grid_nomatch(gs):
 # Define an SQL query function to return the data in some row.
 # -----------------------------------------------------------------------------
 
-def query(row):
-    qry = ("SELECT callsign, " + row + " FROM seqp_submissions ")
+def query(qry):
     crsr = db.cursor()
     crsr.execute(qry)
     return crsr.fetchall()
@@ -65,7 +64,11 @@ for call in unique_calls:
         key = 'gs_{:d}'.format(band)
         row_dct[key]                = 0
     row_dct['qsos_submitted']       = np.count_nonzero(df_seqp['call_0'] == call)
+    row_dct['operated_totality']    = 0
+    row_dct['operated_outdoors']    = 0
+    row_dct['operated_public']      = 0
     row_dct['ground_conductivity']  = 0
+    row_dct['antenna_design']       = 0
 
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
@@ -194,6 +197,17 @@ for rinx, row in df_out.iterrows():
 print('Completed scoring for Rule 2...')
 
 # -----------------------------------------------------------------------------
+# BONUS 1-3: Add 100 * 3 points to any callsign listed in df_out.
+# -----------------------------------------------------------------------------
+
+for idx, row in df_out.iterrows():
+    df_out.ix[idx, 'operated_totality'] = 100
+    df_out.ix[idx, 'operated_outdoors'] = 100
+    df_out.ix[idx, 'operated_public']   = 100
+
+print('Completed scoring for Bonuses 1-3...')
+
+# -----------------------------------------------------------------------------
 # Load in the hamsci_rsrch database.
 # -----------------------------------------------------------------------------
 
@@ -206,11 +220,12 @@ db          = mysql.connector.connect(user=user,password=password,host=host,data
 print('SQL database loaded...')
 
 # -----------------------------------------------------------------------------
-# BONUS 4: Add 50 points if the ground conductivity in the SQL table is not 0.
+# BONUS 4: Add 50 points if the ground conductivity for a callsign in the SQL
+# table is not 0.
 # -----------------------------------------------------------------------------
 
 for idx, row in df_out.iterrows():
-    for result in query('ground_conductivity'):
+    for result in query('SELECT callsign, ground_conductivity FROM seqp_submissions'):
         if (result[0] == row['call'] and
             result[1] != 0.0):
             df_out.ix[idx, 'ground_conductivity'] = 50
@@ -218,7 +233,26 @@ for idx, row in df_out.iterrows():
 print('Completed scoring for Bonus 4...')
 
 # -----------------------------------------------------------------------------
-# Finish calculating grand totals, reorganize columns, and export accordingly.
+# BONUS 5: Add 100 points if a filename exists for a callsign in the SQL table.
+# Create blacklist
+# -----------------------------------------------------------------------------
+
+for idx, row in df_out.iterrows():
+    for result in query('SELECT callsign, dsn_fname FROM seqp_submissions'):
+        if (result[0] == row['call'] and
+            result[1] != None):
+            df_out.ix[idx, 'antenna_design'] = 100
+
+print('Completed scoring for Bonus 5...')
+
+# -----------------------------------------------------------------------------
+# BONUS 6:
+# ERP+50 if != 0
+# Per number of bands on all antennas (concat)
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Finish calculating grand totals.
 # -----------------------------------------------------------------------------
 
 df_out['total_qso_pts'] = df_out['cw_qso_pts'] + df_out['ph_qso_pts']
@@ -227,8 +261,18 @@ df_out['total_gs']      = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
                           df_out['gs_14'] + df_out['gs_21'] + \
                           df_out['gs_28'] + df_out['gs_50']
 df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
-                          df_out['ground_conductivity']
+                          df_out['operated_totality'] + \
+                          df_out['operated_outdoors'] + \
+                          df_out['operated_public'] + \
+                          df_out['ground_conductivity'] + \
+                          df_out['antenna_design']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
+
+print('Completed scoring summations...')
+
+# -----------------------------------------------------------------------------
+# Reorganize columns for proper readability.
+# -----------------------------------------------------------------------------
 
 keys = []
 keys.append('call')
@@ -248,8 +292,18 @@ keys.append('gs_21')
 keys.append('gs_28')
 keys.append('gs_50',)
 keys.append('total_gs')
+keys.append('operated_totality')
+keys.append('operated_outdoors')
+keys.append('operated_public')
 keys.append('ground_conductivity')
+keys.append('antenna_design')
 keys.append('total')
+
+print('Columns reorganized...')
+
+# -----------------------------------------------------------------------------
+# Export the DataFrame to a CSV file, 'seqp_scores.csv'.
+# -----------------------------------------------------------------------------
 
 df_out = df_out[keys].copy()
 df_out.to_csv('seqp_scores.csv',index=False)
