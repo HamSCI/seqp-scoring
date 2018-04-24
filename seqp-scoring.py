@@ -35,6 +35,19 @@ def query(qry):
     crsr.close()
 
 # -----------------------------------------------------------------------------
+# Define a function that checks if a number exists and is greater than zero.
+# -----------------------------------------------------------------------------
+
+def num_gtz(n):
+    try:
+        if float(n) > 0:
+            return True
+        else:
+            return False
+    except ValueError:
+        return False
+
+# -----------------------------------------------------------------------------
 # Read in a CSV, remove any QSOs not from seqp_logs, then sort the QSOs.
 # -----------------------------------------------------------------------------
 
@@ -49,11 +62,12 @@ print('CSV read in complete...')
 # Additionally, compute the number of submitted QSOs per callsign.
 # -----------------------------------------------------------------------------
 
-unique_calls = df_seqp['call_0'].unique()
+unique_calls    = df_seqp['call_0'].unique()
+df_list         = []
 
-df_list = []
 for call in unique_calls:
-    if pd.isnull(call): continue
+    if pd.isnull(call):
+        continue
     row_dct = OrderedDict()
     row_dct['call']                 = call
     row_dct['cw_qso_pts']           = 0
@@ -69,7 +83,7 @@ for call in unique_calls:
     row_dct['operated_public']      = 0
     row_dct['ground_conductivity']  = 0
     row_dct['antenna_design']       = 0
-
+    row_dct['erpd']                 = 0
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
 
@@ -108,13 +122,13 @@ print('NaN removal complete...')
 # apply, cycle through the next/similar QSOs, dropping them from the DataFrame.
 # -----------------------------------------------------------------------------
 
-drop    = True
-last_a  = 0
+drop = True
+last = 0
 
 while drop == True:
     df_seqp.reset_index(drop = True, inplace = True)
-    for idx_a, row_a in df_seqp.iloc[last_a:].iterrows():
-        last_a = idx_a
+    for idx_a, row_a in df_seqp.iloc[last:].iterrows():
+        last = idx_a
         if idx_a + 1 == df_seqp.shape[0]:
             drop = False
             break
@@ -143,15 +157,15 @@ print('Duplicate removal complete...')
 # RULE 1: Add 1 point for a Phone QSO. Add 2 points for a CW/Digital QSO.
 # -----------------------------------------------------------------------------
 
-last_b  = 0
+last = 0
 
 for idx_a, row_a in df_out.iterrows():
-    for idx_b, row_b in df_seqp.iloc[last_b:].iterrows():
-        last_b = idx_b
+    for idx_b, row_b in df_seqp.iloc[last:].iterrows():
+        last = idx_b
         if row_a['call'] != row_b['call_0']:
             break
         elif (row_b['mode'] == 'PH' or
-            row_b['mode'] == 'SSB'):
+        row_b['mode'] == 'SSB'):
             df_out.ix[idx_a, 'ph_qso_pts']  += 1
             df_out.ix[idx_a, 'ph_qso']      += 1
         else:
@@ -220,36 +234,67 @@ db          = mysql.connector.connect(user=user,password=password,host=host,data
 print('SQL database loaded...')
 
 # -----------------------------------------------------------------------------
-# BONUS 4: Add 50 points if the ground conductivity for a callsign in the SQL
-# table is not 0.
+# Prepare a DataFrame derived from various tables in the hamsci_rsrch database.
 # -----------------------------------------------------------------------------
 
-for idx, row in df_out.iterrows():
-    for result in query('SELECT callsign, ground_conductivity FROM seqp_submissions'):
-        if (result[0] == row['call'] and
-            result[1] != 0.0):
-            df_out.ix[idx, 'ground_conductivity'] = 50
+df_list = []
+last    = 0
 
-print('Completed scoring for Bonus 4...')
+for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_conductivity, dsn_fname FROM seqp_submissions')):
+    last = idx_a
+    row_dct = OrderedDict()
+    row_dct['call']         = result_a[1]
+    row_dct['g_con']        = result_a[2]
+    row_dct['dsn_fname']    = result_a[3]
+    row_dct['has_160']      = 0
+    row_dct['has_80']       = 0
+    row_dct['has_40']       = 0
+    row_dct['has_20']       = 0
+    row_dct['has_15']       = 0
+    row_dct['has_10']       = 0
+    row_dct['has_6']        = 0
+    for result_b in query('SELECT submitter_id, has_160, has_80, has_40, has_20, has_15, has_10, has_6, erp FROM seqp_antennas')[last:]:
+        if (result_a[0] == result_b[0]
+        and num_gtz(result_b[8])):
+            row_dct['has_160']  += result_b[1]
+            row_dct['has_80']   += result_b[2]
+            row_dct['has_40']   += result_b[3]
+            row_dct['has_20']   += result_b[4]
+            row_dct['has_15']   += result_b[5]
+            row_dct['has_10']   += result_b[6]
+            row_dct['has_6']    += result_b[7]
+    df_list.append(row_dct)
+df_sub = pd.DataFrame(df_list)
 
+df_sub.sort_values(by = ['call'], inplace = True)
+
+print('Additional DataFrame created...')
+
+# -----------------------------------------------------------------------------
+# BONUS 4: Add 50 points if ground conductivity is greater than 0.
 # -----------------------------------------------------------------------------
 # BONUS 5: Add 100 points if a filename exists for a callsign in the SQL table.
-# Create blacklist
+# -----------------------------------------------------------------------------
+# BONUS 6: Add 50 points per band for all submitted antennas that contain a
+# submitted ERPD value which is greater than 0 (automatically done earlier).
 # -----------------------------------------------------------------------------
 
-for idx, row in df_out.iterrows():
-    for result in query('SELECT callsign, dsn_fname FROM seqp_submissions'):
-        if (result[0] == row['call'] and
-            result[1] != None):
-            df_out.ix[idx, 'antenna_design'] = 100
+for idx_a, row_a in df_out.iterrows():
+    for idx_b, row_b in df_sub.iterrows():
+        if (row_a['call'] == row_b['call'] and
+        num_gtz(row_b['g_con'])):
+            df_out.ix[idx_a, 'ground_conductivity'] = 50
+        if (row_a['call'] == row_b['call'] and
+        row_b['dsn_fname'] != None):
+            df_out.ix[idx_a, 'antenna_design'] = 100
+        if (row_a['call'] == row_b['call']):
+            print(int(bool(row_dct['has_160'])), int(bool(row_dct['has_80'])), int(bool(row_dct['has_40'])), int(bool(row_dct['has_20'])), int(bool(row_dct['has_15'])), int(bool(row_dct['has_10'])), int(bool(row_dct['has_6'])))
+            df_out.ix[idx_a, 'erpd'] = (int(bool(row_dct['has_160'])) + \
+            int(bool(row_dct['has_80'])) + int(bool(row_dct['has_40'])) + \
+            int(bool(row_dct['has_20'])) + int(bool(row_dct['has_15'])) + \
+            int(bool(row_dct['has_10'])) + int(bool(row_dct['has_6']))) * 50
 
-print('Completed scoring for Bonus 5...')
-
-# -----------------------------------------------------------------------------
-# BONUS 6:
-# ERP+50 if != 0
-# Per number of bands on all antennas (concat)
-# -----------------------------------------------------------------------------
+print('Completed scoring for Bonuses 4-6...')
 
 # -----------------------------------------------------------------------------
 # Finish calculating grand totals.
@@ -265,7 +310,7 @@ df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
                           df_out['operated_outdoors'] + \
                           df_out['operated_public'] + \
                           df_out['ground_conductivity'] + \
-                          df_out['antenna_design']
+                          df_out['antenna_design'] + df_out['erpd']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
 print('Completed scoring summations...')
@@ -297,6 +342,7 @@ keys.append('operated_outdoors')
 keys.append('operated_public')
 keys.append('ground_conductivity')
 keys.append('antenna_design')
+keys.append('erpd')
 keys.append('total')
 
 print('Columns reorganized...')
