@@ -243,7 +243,7 @@ last    = 0
 for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_conductivity, dsn_fname FROM seqp_submissions')):
     last = idx_a
     row_dct = OrderedDict()
-    row_dct['call']         = result_a[1]
+    row_dct['call']         = result_a[1].upper()
     row_dct['g_con']        = result_a[2]
     row_dct['dsn_fname']    = result_a[3]
     row_dct['has_160']      = 0
@@ -266,7 +266,7 @@ for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_co
     df_list.append(row_dct)
 df_sub = pd.DataFrame(df_list)
 
-df_sub.sort_values(by = ['call'], inplace = True)
+df_sub.sort_values(by = ['call']).reset_index(drop = True, inplace = True)
 
 print('Additional DataFrame created...')
 
@@ -288,11 +288,10 @@ for idx_a, row_a in df_out.iterrows():
         row_b['dsn_fname'] != None):
             df_out.ix[idx_a, 'antenna_design'] = 100
         if (row_a['call'] == row_b['call']):
-            print(int(bool(row_dct['has_160'])), int(bool(row_dct['has_80'])), int(bool(row_dct['has_40'])), int(bool(row_dct['has_20'])), int(bool(row_dct['has_15'])), int(bool(row_dct['has_10'])), int(bool(row_dct['has_6'])))
-            df_out.ix[idx_a, 'erpd'] = (int(bool(row_dct['has_160'])) + \
-            int(bool(row_dct['has_80'])) + int(bool(row_dct['has_40'])) + \
-            int(bool(row_dct['has_20'])) + int(bool(row_dct['has_15'])) + \
-            int(bool(row_dct['has_10'])) + int(bool(row_dct['has_6']))) * 50
+            df_out.ix[idx_a, 'erpd'] = (int(bool(row_b['has_160'])) + \
+            int(bool(row_b['has_80'])) + int(bool(row_b['has_40'])) + \
+            int(bool(row_b['has_20'])) + int(bool(row_b['has_15'])) + \
+            int(bool(row_b['has_10'])) + int(bool(row_b['has_6']))) * 50
 
 print('Completed scoring for Bonuses 4-6...')
 
