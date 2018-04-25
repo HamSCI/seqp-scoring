@@ -84,6 +84,8 @@ for call in unique_calls:
     row_dct['ground_conductivity']  = 0
     row_dct['antenna_design']       = 0
     row_dct['erpd']                 = 0
+    row_dct['skimmers']             = 0
+    row_dct['iq_data']              = 0
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
 
@@ -246,23 +248,74 @@ for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_co
     row_dct['call']         = result_a[1].upper()
     row_dct['g_con']        = result_a[2]
     row_dct['dsn_fname']    = result_a[3]
-    row_dct['has_160']      = 0
-    row_dct['has_80']       = 0
-    row_dct['has_40']       = 0
-    row_dct['has_20']       = 0
-    row_dct['has_15']       = 0
-    row_dct['has_10']       = 0
-    row_dct['has_6']        = 0
+    # TODO: Make a for loop for this.
+    row_dct['an_has_160']   = 0
+    row_dct['an_has_80']    = 0
+    row_dct['an_has_40']    = 0
+    row_dct['an_has_20']    = 0
+    row_dct['an_has_15']    = 0
+    row_dct['an_has_10']    = 0
+    row_dct['an_has_6']     = 0
+    row_dct['sk_has_160']   = 0
+    row_dct['sk_has_80']    = 0
+    row_dct['sk_has_60']    = 0
+    row_dct['sk_has_40']    = 0
+    row_dct['sk_has_30']    = 0
+    row_dct['sk_has_20']    = 0
+    row_dct['sk_has_17']    = 0
+    row_dct['sk_has_15']    = 0
+    row_dct['sk_has_12']    = 0
+    row_dct['sk_has_10']    = 0
+    row_dct['sk_has_6']     = 0
+    row_dct['wb_has_160']   = 0
+    row_dct['wb_has_80']    = 0
+    row_dct['wb_has_60']    = 0
+    row_dct['wb_has_40']    = 0
+    row_dct['wb_has_30']    = 0
+    row_dct['wb_has_20']    = 0
+    row_dct['wb_has_17']    = 0
+    row_dct['wb_has_15']    = 0
+    row_dct['wb_has_12']    = 0
+    row_dct['wb_has_10']    = 0
+    row_dct['wb_has_6']     = 0
     for result_b in query('SELECT submitter_id, has_160, has_80, has_40, has_20, has_15, has_10, has_6, erp FROM seqp_antennas')[last:]:
         if (result_a[0] == result_b[0]
         and num_gtz(result_b[8])):
-            row_dct['has_160']  += result_b[1]
-            row_dct['has_80']   += result_b[2]
-            row_dct['has_40']   += result_b[3]
-            row_dct['has_20']   += result_b[4]
-            row_dct['has_15']   += result_b[5]
-            row_dct['has_10']   += result_b[6]
-            row_dct['has_6']    += result_b[7]
+            row_dct['an_has_160']  += result_b[1]
+            row_dct['an_has_80']   += result_b[2]
+            row_dct['an_has_40']   += result_b[3]
+            row_dct['an_has_20']   += result_b[4]
+            row_dct['an_has_15']   += result_b[5]
+            row_dct['an_has_10']   += result_b[6]
+            row_dct['an_has_6']    += result_b[7]
+    for result_c in query('SELECT submitter_id, mode, has_160, has_80, has_60, has_40, has_30, has_20, has_17, has_15, has_12, has_10, has_6 FROM seqp_skimmers')[last:]:
+        if (result_a[0] == result_c[0]
+        and result_c[1] != None):
+            row_dct['sk_has_160']  += result_c[2]
+            row_dct['sk_has_80']   += result_c[3]
+            row_dct['sk_has_60']   += result_c[4]
+            row_dct['sk_has_40']   += result_c[5]
+            row_dct['sk_has_30']   += result_c[6]
+            row_dct['sk_has_20']   += result_c[7]
+            row_dct['sk_has_17']   += result_c[8]
+            row_dct['sk_has_15']   += result_c[9]
+            row_dct['sk_has_12']   += result_c[10]
+            row_dct['sk_has_10']   += result_c[11]
+            row_dct['sk_has_6']    += result_c[12]
+    for result_d in query('SELECT submitter_id, doi, has_160, has_80, has_60, has_40, has_30, has_20, has_17, has_15, has_12, has_10, has_6 FROM seqp_wideband')[last:]:
+        if (result_a[0] == result_d[0]
+        and result_d[1] != None):
+            row_dct['wb_has_160']  += result_d[2]
+            row_dct['wb_has_80']   += result_d[3]
+            row_dct['wb_has_60']   += result_d[4]
+            row_dct['wb_has_40']   += result_d[5]
+            row_dct['wb_has_30']   += result_d[6]
+            row_dct['wb_has_20']   += result_d[7]
+            row_dct['wb_has_17']   += result_d[8]
+            row_dct['wb_has_15']   += result_d[9]
+            row_dct['wb_has_12']   += result_d[10]
+            row_dct['wb_has_10']   += result_d[11]
+            row_dct['wb_has_6']    += result_d[12]
     df_list.append(row_dct)
 df_sub = pd.DataFrame(df_list)
 
@@ -274,9 +327,14 @@ print('Additional DataFrame created...')
 # BONUS 4: Add 50 points if ground conductivity is greater than 0.
 # -----------------------------------------------------------------------------
 # BONUS 5: Add 100 points if a filename exists for a callsign in the SQL table.
+# TODO: Blacklist?
 # -----------------------------------------------------------------------------
 # BONUS 6: Add 50 points per band for all submitted antennas that contain a
 # submitted ERPD value which is greater than 0 (automatically done earlier).
+# -----------------------------------------------------------------------------
+# BONUS 7: Add 50 points per band and per mode for all submitted skimmers.
+# -----------------------------------------------------------------------------
+# BONUS 8: Add 50 points per band for all submitted Zenodo DOIs.
 # -----------------------------------------------------------------------------
 
 for idx_a, row_a in df_out.iterrows():
@@ -288,12 +346,26 @@ for idx_a, row_a in df_out.iterrows():
         row_b['dsn_fname'] != None):
             df_out.ix[idx_a, 'antenna_design'] = 100
         if (row_a['call'] == row_b['call']):
-            df_out.ix[idx_a, 'erpd'] = (int(bool(row_b['has_160'])) + \
-            int(bool(row_b['has_80'])) + int(bool(row_b['has_40'])) + \
-            int(bool(row_b['has_20'])) + int(bool(row_b['has_15'])) + \
-            int(bool(row_b['has_10'])) + int(bool(row_b['has_6']))) * 50
+            df_out.ix[idx_a, 'erpd'] = (int(bool(row_b['an_has_160'])) + \
+            int(bool(row_b['an_has_80'])) + int(bool(row_b['an_has_40'])) + \
+            int(bool(row_b['an_has_20'])) + int(bool(row_b['an_has_15'])) + \
+            int(bool(row_b['an_has_10'])) + int(bool(row_b['an_has_6']))) * 50
+            # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            df_out.ix[idx_a, 'skimmers'] = (int(bool(row_b['sk_has_160'])) + \
+            int(bool(row_b['sk_has_80'])) + int(bool(row_b['sk_has_60'])) + \
+            int(bool(row_b['sk_has_40'])) + int(bool(row_b['sk_has_30'])) + \
+            int(bool(row_b['sk_has_20'])) + int(bool(row_b['sk_has_17'])) + \
+            int(bool(row_b['sk_has_15'])) + int(bool(row_b['sk_has_12'])) + \
+            int(bool(row_b['sk_has_10'])) + int(bool(row_b['sk_has_6']))) * 50
+            # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            df_out.ix[idx_a, 'iq_data'] = (int(bool(row_b['wb_has_160'])) + \
+            int(bool(row_b['wb_has_80'])) + int(bool(row_b['wb_has_60'])) + \
+            int(bool(row_b['wb_has_40'])) + int(bool(row_b['wb_has_30'])) + \
+            int(bool(row_b['wb_has_20'])) + int(bool(row_b['wb_has_17'])) + \
+            int(bool(row_b['wb_has_15'])) + int(bool(row_b['wb_has_12'])) + \
+            int(bool(row_b['wb_has_10'])) + int(bool(row_b['wb_has_6']))) * 50
 
-print('Completed scoring for Bonuses 4-6...')
+print('Completed scoring for Bonuses 4-8...')
 
 # -----------------------------------------------------------------------------
 # Finish calculating grand totals.
@@ -309,7 +381,8 @@ df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
                           df_out['operated_outdoors'] + \
                           df_out['operated_public'] + \
                           df_out['ground_conductivity'] + \
-                          df_out['antenna_design'] + df_out['erpd']
+                          df_out['antenna_design'] + df_out['erpd'] + \
+                          df_out['skimmers'] + df_out['iq_data']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
 print('Completed scoring summations...')
@@ -342,6 +415,8 @@ keys.append('operated_public')
 keys.append('ground_conductivity')
 keys.append('antenna_design')
 keys.append('erpd')
+keys.append('skimmers')
+keys.append('iq_data')
 keys.append('total')
 
 print('Columns reorganized...')
