@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from collections import OrderedDict
 from datetime import datetime as dt
 import mysql.connector
@@ -31,8 +32,9 @@ def grid_nomatch(gs):
 def query(qry):
     crsr = db.cursor()
     crsr.execute(qry)
-    return crsr.fetchall()
+    results = crsr.fetchall()
     crsr.close()
+    return results
 
 # -----------------------------------------------------------------------------
 # Define a function that checks if a number exists and is greater than zero.
@@ -278,49 +280,93 @@ for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_co
     row_dct['wb_has_12']    = 0
     row_dct['wb_has_10']    = 0
     row_dct['wb_has_6']     = 0
-    for result_b in query('SELECT submitter_id, has_160, has_80, has_40, has_20, has_15, has_10, has_6, erp FROM seqp_antennas')[last:]:
-        if (result_a[0] == result_b[0]
-        and num_gtz(result_b[8])):
-            row_dct['an_has_160']  += result_b[1]
-            row_dct['an_has_80']   += result_b[2]
-            row_dct['an_has_40']   += result_b[3]
-            row_dct['an_has_20']   += result_b[4]
-            row_dct['an_has_15']   += result_b[5]
-            row_dct['an_has_10']   += result_b[6]
-            row_dct['an_has_6']    += result_b[7]
-    for result_c in query('SELECT submitter_id, mode, has_160, has_80, has_60, has_40, has_30, has_20, has_17, has_15, has_12, has_10, has_6 FROM seqp_skimmers')[last:]:
-        if (result_a[0] == result_c[0]
-        and result_c[1] != None):
-            row_dct['sk_has_160']  += result_c[2]
-            row_dct['sk_has_80']   += result_c[3]
-            row_dct['sk_has_60']   += result_c[4]
-            row_dct['sk_has_40']   += result_c[5]
-            row_dct['sk_has_30']   += result_c[6]
-            row_dct['sk_has_20']   += result_c[7]
-            row_dct['sk_has_17']   += result_c[8]
-            row_dct['sk_has_15']   += result_c[9]
-            row_dct['sk_has_12']   += result_c[10]
-            row_dct['sk_has_10']   += result_c[11]
-            row_dct['sk_has_6']    += result_c[12]
-    for result_d in query('SELECT submitter_id, doi, has_160, has_80, has_60, has_40, has_30, has_20, has_17, has_15, has_12, has_10, has_6 FROM seqp_wideband')[last:]:
-        if (result_a[0] == result_d[0]
-        and result_d[1] != None):
-            row_dct['wb_has_160']  += result_d[2]
-            row_dct['wb_has_80']   += result_d[3]
-            row_dct['wb_has_60']   += result_d[4]
-            row_dct['wb_has_40']   += result_d[5]
-            row_dct['wb_has_30']   += result_d[6]
-            row_dct['wb_has_20']   += result_d[7]
-            row_dct['wb_has_17']   += result_d[8]
-            row_dct['wb_has_15']   += result_d[9]
-            row_dct['wb_has_12']   += result_d[10]
-            row_dct['wb_has_10']   += result_d[11]
-            row_dct['wb_has_6']    += result_d[12]
+
+    results = query('SELECT submitter_id, has_160, has_80, has_40, has_20, has_15, has_10, has_6, erp FROM seqp_antennas WHERE submitter_id={!s}'.format(result_a[0]))
+    for result_b in results:
+        if not num_gtz(result_b[8]):
+            continue
+        row_dct['an_has_160']  += result_b[1]
+        row_dct['an_has_80']   += result_b[2]
+        row_dct['an_has_40']   += result_b[3]
+        row_dct['an_has_20']   += result_b[4]
+        row_dct['an_has_15']   += result_b[5]
+        row_dct['an_has_10']   += result_b[6]
+        row_dct['an_has_6']    += result_b[7]
+
+    results = query('SELECT submitter_id, mode, has_160, has_80, has_60, has_40, has_30, has_20, has_17, has_15, has_12, has_10, has_6 FROM seqp_skimmers WHERE submitter_id={!s}'.format(result_a[0]))
+    for result_c in results:
+        if not num_gtz(result_b[8]):
+            continue
+        row_dct['sk_has_160']  += result_c[2]
+        row_dct['sk_has_80']   += result_c[3]
+        row_dct['sk_has_60']   += result_c[4]
+        row_dct['sk_has_40']   += result_c[5]
+        row_dct['sk_has_30']   += result_c[6]
+        row_dct['sk_has_20']   += result_c[7]
+        row_dct['sk_has_17']   += result_c[8]
+        row_dct['sk_has_15']   += result_c[9]
+        row_dct['sk_has_12']   += result_c[10]
+        row_dct['sk_has_10']   += result_c[11]
+        row_dct['sk_has_6']    += result_c[12]
+
+    results = query('SELECT submitter_id, doi, has_160, has_80, has_60, has_40, has_30, has_20, has_17, has_15, has_12, has_10, has_6 FROM seqp_wideband WHERE submitter_id={!s}'.format(result_a[0]))
+    for result_d in results:
+        if not num_gtz(result_b[8]):
+            continue
+        row_dct['wb_has_160']  += result_d[2]
+        row_dct['wb_has_80']   += result_d[3]
+        row_dct['wb_has_60']   += result_d[4]
+        row_dct['wb_has_40']   += result_d[5]
+        row_dct['wb_has_30']   += result_d[6]
+        row_dct['wb_has_20']   += result_d[7]
+        row_dct['wb_has_17']   += result_d[8]
+        row_dct['wb_has_15']   += result_d[9]
+        row_dct['wb_has_12']   += result_d[10]
+        row_dct['wb_has_10']   += result_d[11]
+        row_dct['wb_has_6']    += result_d[12]
     df_list.append(row_dct)
 df_sub = pd.DataFrame(df_list)
 
 df_sub.sort_values(by = ['call']).reset_index(drop = True, inplace = True)
 
+keys = []
+keys.append('sk_has_160')
+keys.append('sk_has_80')
+keys.append('sk_has_60')
+keys.append('sk_has_40')
+keys.append('sk_has_30')
+keys.append('sk_has_20')
+keys.append('sk_has_17')
+keys.append('sk_has_15')
+keys.append('sk_has_12')
+keys.append('sk_has_10')
+keys.append('sk_has_6')
+sk = keys.copy()
+
+keys = []
+keys.append('wb_has_160')
+keys.append('wb_has_80')
+keys.append('wb_has_60')
+keys.append('wb_has_40')
+keys.append('wb_has_30')
+keys.append('wb_has_20')
+keys.append('wb_has_17')
+keys.append('wb_has_15')
+keys.append('wb_has_12')
+keys.append('wb_has_10')
+keys.append('wb_has_6')
+wb = keys.copy()
+
+keys = []
+keys.append('an_has_160')
+keys.append('an_has_80')
+keys.append('an_has_40')
+keys.append('an_has_20')
+keys.append('an_has_15')
+keys.append('an_has_10')
+keys.append('an_has_6')
+an = keys.copy()
+import ipdb; ipdb.set_trace()
 print('Additional DataFrame created...')
 
 # -----------------------------------------------------------------------------
@@ -429,3 +475,5 @@ df_out = df_out[keys].copy()
 df_out.to_csv('seqp_scores.csv',index=False)
 
 print('Output CSV exported successfully!')
+
+import ipdb; ipdb.set_trace()
