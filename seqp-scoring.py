@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 from collections import OrderedDict
 from datetime import datetime as dt
+import datetime
 import mysql.connector
 import numpy as np
 import pandas as pd
 import re
 import time
+import tqdm
 
 # -----------------------------------------------------------------------------
 # Miscellaneous variable/function declarations go here...
@@ -66,12 +68,26 @@ print('CSV read in complete...')
 
 unique_calls    = df_seqp['call_0'].unique()
 df_list         = []
-
 for call in unique_calls:
     if pd.isnull(call):
         continue
+
+    # Get grid square.
+    tf  = df_seqp['call_0'] == call
+    df_tmp  = df_seqp[tf]
+    grids   = df_tmp['grid_0'].unique()
+    if len(grids) != 1:
+        import ipdb; ipdb.set_trace()
+    else:
+        grid    = grids[0]
+        if pd.isnull(grid):
+            continue
+        
+        grid    = grid[:4].upper()
+
     row_dct = OrderedDict()
     row_dct['call']                 = call
+    row_dct['grid']                 = grid
     row_dct['cw_qso_pts']           = 0
     row_dct['ph_qso_pts']           = 0
     row_dct['cw_qso']               = 0
@@ -86,8 +102,10 @@ for call in unique_calls:
     row_dct['ground_conductivity']  = 0
     row_dct['antenna_design']       = 0
     row_dct['erpd']                 = 0
+
     row_dct['skimmers']             = 0
     row_dct['iq_data']              = 0
+    row_dct['spot_bonus']           = 0
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
 
@@ -366,7 +384,6 @@ keys.append('an_has_15')
 keys.append('an_has_10')
 keys.append('an_has_6')
 an = keys.copy()
-import ipdb; ipdb.set_trace()
 print('Additional DataFrame created...')
 
 # -----------------------------------------------------------------------------
@@ -413,6 +430,55 @@ for idx_a, row_a in df_out.iterrows():
 
 print('Completed scoring for Bonuses 4-8...')
 
+            
+# -----------------------------------------------------------------------------
+# Bonus Rule Number 9
+# -----------------------------------------------------------------------------
+print('Working on Bonus 9 (Spot Bonus)')
+tf_pskr = df['source'] == 'pskreporter'
+tf_rbn  = df['source'] == 'rbn'
+tf      = np.logical_or.reduce( (tf_pskr,tf_rbn) )
+df_spot = df[tf].copy()
+df_spot = df_spot.dropna(subset=['grid_0'])
+
+grid_4char = []
+print('    Converting to 4 char grids for df_spot')
+for idx, row in tqdm.tqdm(df_spot.iterrows(),total=len(df_spot)):
+    try:
+        s = str(row['grid_0'])[:4]
+        grid_4char.append(s)
+    except:
+        grid_4char.append(None)
+df_spot['grid_0_4char'] = grid_4char
+df_spot = df_spot.dropna(subset=['grid_0_4char'])
+
+sTime   = datetime.datetime(2017,8,21,14)
+print('   Computing Spot Bonus')
+for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
+    spot_bonus  = 0
+    call        = row_a['call']
+    grid        = row_a['grid']
+    for band in bands:
+        tf              = np.logical_and(df_spot['call_1'] == call,df_spot['band'] == band)
+        df_call_band    = df_spot[tf]
+
+        for hour in range(8):
+            t_0 = sTime + datetime.timedelta(hours=hour)
+            t_1 = t_0 + datetime.timedelta(hours=1)
+
+            tf  = np.logical_and(df_call_band['datetime'] >= t_0,df_call_band['datetime'] < t_1)
+            if np.count_nonzero(tf) == 0:
+                continue
+            df_tmp  = df_call_band[tf]
+            spotted_grids   = df_tmp.grid_0_4char.unique().tolist()
+            if grid in spotted_grids:
+                spotted_grids.remove(grid)
+
+            spot_bonus += len(spotted_grids)
+
+    df_out.ix[idx_a, 'spot_bonus'] = spot_bonus
+
+
 # -----------------------------------------------------------------------------
 # Finish calculating grand totals.
 # -----------------------------------------------------------------------------
@@ -428,7 +494,8 @@ df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
                           df_out['operated_public'] + \
                           df_out['ground_conductivity'] + \
                           df_out['antenna_design'] + df_out['erpd'] + \
-                          df_out['skimmers'] + df_out['iq_data']
+                          df_out['skimmers'] + df_out['iq_data'] +\
+                          df_out['spot_bonus']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
 print('Completed scoring summations...')
@@ -463,6 +530,7 @@ keys.append('antenna_design')
 keys.append('erpd')
 keys.append('skimmers')
 keys.append('iq_data')
+keys.append('spot_bonus')
 keys.append('total')
 
 print('Columns reorganized...')
