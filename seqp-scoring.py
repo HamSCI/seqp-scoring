@@ -73,7 +73,6 @@ def num_gtz(n):
 df      = pd.read_csv('seqp_all_ctyChecked.csv.bz2', parse_dates = ['datetime'])
 tf      = df['source'] == 'seqp_logs'
 df_seqp = df[tf].copy().sort_values(by = ['call_0', 'datetime']).reset_index(drop = True)
-
 print('CSV read in complete...')
 
 # -----------------------------------------------------------------------------
@@ -231,7 +230,7 @@ df_seqp     = df_seqp[tf].copy()
 #tf      = np.logical_not(df_seqp['dupe'])
 #df_seqp = df_seqp[tf].copy()
 
-print('Score valide QSOs...')
+print('Score valid QSOs...')
 for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     tf      = df_seqp['call_0'] == row['call']
     dft     = df_seqp[tf]
@@ -254,7 +253,7 @@ for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
 # -----------------------------------------------------------------------------
 # RULE 2: 4-character grid squares are counted once per band.
 # -----------------------------------------------------------------------------
-print('Calculating grid square multiplier...')
+print('Calculating grid square multipliers...')
 df_seqp['grid_0_4char'] = df_seqp['grid_0'].apply(lambda x: str(x)[:4])
 df_seqp['grid_1_4char'] = df_seqp['grid_1'].apply(lambda x: str(x)[:4])
 
@@ -270,19 +269,15 @@ for rinx, row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
        key      = 'gs_{:d}'.format(band)
        df_out.loc[rinx,key] = gs
 
-print('Completed scoring for Rule 2...')
-import ipdb; ipdb.set_trace()
-
 # -----------------------------------------------------------------------------
 # BONUS 1-3: Add 100 * 3 points to any callsign listed in df_out.
 # -----------------------------------------------------------------------------
 
+print('Compute Bonuses 1-3 (Totality, Outdoors, Public Venue)...')
 for idx, row in df_out.iterrows():
     df_out.ix[idx, 'operated_totality'] = 100
     df_out.ix[idx, 'operated_outdoors'] = 100
     df_out.ix[idx, 'operated_public']   = 100
-
-print('Completed scoring for Bonuses 1-3...')
 
 # -----------------------------------------------------------------------------
 # Load in the hamsci_rsrch database.
@@ -301,10 +296,8 @@ print('SQL database loaded...')
 # -----------------------------------------------------------------------------
 
 df_list = []
-last    = 0
 
 for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_conductivity, dsn_fname FROM seqp_submissions')):
-    last = idx_a
     row_dct = OrderedDict()
     row_dct['call']         = result_a[1].upper()
     row_dct['g_con']        = result_a[2]
@@ -471,7 +464,6 @@ for idx_a, row_a in df_out.iterrows():
 
 print('Completed scoring for Bonuses 4-8...')
 
-            
 # -----------------------------------------------------------------------------
 # Bonus Rule Number 9
 # -----------------------------------------------------------------------------
