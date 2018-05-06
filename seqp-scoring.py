@@ -514,7 +514,7 @@ df_out['total_gs']      = df_out[keys].sum(1)
 
 # Spot Bonus Total
 keys = ['pskreporter','rbn','dxcluster']
-df_out['spot_bonus']   = df_out[keys].sum(1)
+df_out['total_spot_bonus']   = df_out[keys].sum(1)
 
 # Total Bonus Points
 keys =[]
@@ -526,7 +526,7 @@ keys.append('antenna_design')
 keys.append('erpd')
 keys.append('skimmers')
 keys.append('iq_data')
-keys.append('spot_bonus')
+keys.append('total_spot_bonus')
 df_out['total_bonus']   = df_out[keys].sum(1)
 
 df_out['total']         = (df_out['total_qso_pts'] * df_out['total_gs']) + df_out['total_bonus']
@@ -566,7 +566,7 @@ keys.append('iq_data')
 keys.append('pskreporter')
 keys.append('rbn')
 keys.append('dxcluster')
-keys.append('total_spots')
+keys.append('total_spot_bonus')
 keys.append('total_qso_pts')
 keys.append('total_gs')
 keys.append('total_bonus')
