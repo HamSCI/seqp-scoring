@@ -120,7 +120,9 @@ for call in unique_calls:
 
     row_dct['skimmers']             = 0
     row_dct['iq_data']              = 0
-    row_dct['spot_bonus']           = 0
+    row_dct['pskreporter']          = 0
+    row_dct['rbn']                  = 0
+    row_dct['dxcluster']            = 0
     df_list.append(row_dct)
 df_out = pd.DataFrame(df_list)
 
@@ -271,13 +273,17 @@ for rinx, row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
 
 # -----------------------------------------------------------------------------
 # BONUS 1-3: Add 100 * 3 points to any callsign listed in df_out.
+# "1. Operated during totality (or the time of greatest shadow at your QTH) – 
+#     add 100 points.
+#  2. Operate outdoors (so you can see the eclipse) – add 100 points
+#  3. Operate at a public venue – add 100 points"
 # -----------------------------------------------------------------------------
 
 print('Compute Bonuses 1-3 (Totality, Outdoors, Public Venue)...')
 for idx, row in df_out.iterrows():
-    df_out.ix[idx, 'operated_totality'] = 100
-    df_out.ix[idx, 'operated_outdoors'] = 100
-    df_out.ix[idx, 'operated_public']   = 100
+    df_out.loc[idx, 'operated_totality'] = 100
+    df_out.loc[idx, 'operated_outdoors'] = 100
+    df_out.loc[idx, 'operated_public']   = 100
 
 # -----------------------------------------------------------------------------
 # Load in the hamsci_rsrch database.
@@ -422,40 +428,57 @@ print('Additional DataFrame created...')
 
 # -----------------------------------------------------------------------------
 # BONUS 4: Add 50 points if ground conductivity is greater than 0.
+# "4. Provide ground conductivity (estimated from online conductivity maps, see
+#     https://www.fcc.gov/media/radio/m3-ground-conductivity-map) – add 50
+#     points."
 # -----------------------------------------------------------------------------
 # BONUS 5: Add 100 points if a filename exists for a callsign in the SQL table.
 # TODO: Blacklist?
+# "5. Upload PDF of antenna and station design characteristics, including
+#     information such as orientation, E and H plane patterns, height above
+#     ground, station block diagram – add 100 points."
 # -----------------------------------------------------------------------------
 # BONUS 6: Add 50 points per band for all submitted antennas that contain a
 # submitted ERPD value which is greater than 0 (automatically done earlier).
+# "6. Provide Effective Radiated Power relative to a Dipole (ERPD) on each
+#     band – add 50 points per band."
 # -----------------------------------------------------------------------------
 # BONUS 7: Add 50 points per band and per mode for all submitted skimmers.
+# "7. Operate a wideband RBN, PSKReporter, or WSPRNet node during the contest
+#       a. 50 points per band and mode (including 60, 30, 17, and 12 meters).
+#       b. Multiple receive sites may be claimed, provided receive sites are
+#          spaced at least 100 km apart."
 # -----------------------------------------------------------------------------
 # BONUS 8: Add 50 points per band for all submitted Zenodo DOIs.
+# "8. Provide wideband I/Q recordings of SEQP bands (50 points per band).
+#     The data files should be uploaded to the HamSCI community on zenodo.org.
+#     Follow the procedures on the Eclipse HF Wideband Recording Experiment
+#     page for instructions and provide a link to these data files on the SEQP
+#     log submission page."
 # -----------------------------------------------------------------------------
 
 for idx_a, row_a in df_out.iterrows():
     for idx_b, row_b in df_sub.iterrows():
         if (row_a['call'] == row_b['call'] and
         num_gtz(row_b['g_con'])):
-            df_out.ix[idx_a, 'ground_conductivity'] = 50
+            df_out.loc[idx_a, 'ground_conductivity'] = 50
         if (row_a['call'] == row_b['call'] and
         row_b['dsn_fname'] != None):
-            df_out.ix[idx_a, 'antenna_design'] = 100
+            df_out.loc[idx_a, 'antenna_design'] = 100
         if (row_a['call'] == row_b['call']):
-            df_out.ix[idx_a, 'erpd'] = (int(bool(row_b['an_has_160'])) + \
+            df_out.loc[idx_a, 'erpd'] = (int(bool(row_b['an_has_160'])) + \
             int(bool(row_b['an_has_80'])) + int(bool(row_b['an_has_40'])) + \
             int(bool(row_b['an_has_20'])) + int(bool(row_b['an_has_15'])) + \
             int(bool(row_b['an_has_10'])) + int(bool(row_b['an_has_6']))) * 50
             # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            df_out.ix[idx_a, 'skimmers'] = (int(bool(row_b['sk_has_160'])) + \
+            df_out.loc[idx_a, 'skimmers'] = (int(bool(row_b['sk_has_160'])) + \
             int(bool(row_b['sk_has_80'])) + int(bool(row_b['sk_has_60'])) + \
             int(bool(row_b['sk_has_40'])) + int(bool(row_b['sk_has_30'])) + \
             int(bool(row_b['sk_has_20'])) + int(bool(row_b['sk_has_17'])) + \
             int(bool(row_b['sk_has_15'])) + int(bool(row_b['sk_has_12'])) + \
             int(bool(row_b['sk_has_10'])) + int(bool(row_b['sk_has_6']))) * 50
             # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            df_out.ix[idx_a, 'iq_data'] = (int(bool(row_b['wb_has_160'])) + \
+            df_out.loc[idx_a, 'iq_data'] = (int(bool(row_b['wb_has_160'])) + \
             int(bool(row_b['wb_has_80'])) + int(bool(row_b['wb_has_60'])) + \
             int(bool(row_b['wb_has_40'])) + int(bool(row_b['wb_has_30'])) + \
             int(bool(row_b['wb_has_20'])) + int(bool(row_b['wb_has_17'])) + \
@@ -465,53 +488,44 @@ for idx_a, row_a in df_out.iterrows():
 print('Completed scoring for Bonuses 4-8...')
 
 # -----------------------------------------------------------------------------
-# Bonus Rule Number 9
+# BONUS Rule Number 9
+# "9. One bonus point will be awarded for each band and clock hour during which
+#     your signal was spotted in a grid square other than your own by the RBN,
+#     PSKReporter, or DX spotting network. There are eight clock hours and 7
+#     bands available for receiving bonus points. A spot of your signal on any
+#     mode will qualify for the bonus point."
 # -----------------------------------------------------------------------------
 print('Working on Bonus 9 (Spot Bonus)')
-tf_pskr = df['source'] == 'pskreporter'
-tf_rbn  = df['source'] == 'rbn'
-tf      = np.logical_or.reduce( (tf_pskr,tf_rbn) )
-df_spot = df[tf].copy()
-df_spot = df_spot.dropna(subset=['grid_0'])
-
-grid_4char = []
-print('    Converting to 4 char grids for df_spot')
-for idx, row in tqdm.tqdm(df_spot.iterrows(),total=len(df_spot)):
-    try:
-        s = str(row['grid_0'])[:4]
-        grid_4char.append(s)
-    except:
-        grid_4char.append(None)
-df_spot['grid_0_4char'] = grid_4char
-df_spot = df_spot.dropna(subset=['grid_0_4char'])
-
+sources = ['pskreporter','rbn','dxcluster']
 sTime   = datetime.datetime(2017,8,21,14)
-print('   Computing Spot Bonus')
 for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
-    spot_bonus  = 0
     call        = row_a['call']
     grid        = row_a['grid']
-    for band in bands:
-        tf              = np.logical_and(df_spot['call_1'] == call,df_spot['band'] == band)
-        df_call_band    = df_spot[tf]
+    for source in sources:
+        spot_bonus  = 0
+        for band in bands:
+            tf              = np.logical_and.reduce( (df_seqp['call_1'].upper() == call.upper(),
+                                                      df_seqp['band']           == band,
+                                                      df_seqp['source'].upper() == source.upper() ) )
+            df_call_band    = df_seqp[tf]
 
-        for hour in range(8):
-            t_0 = sTime + datetime.timedelta(hours=hour)
-            t_1 = t_0 + datetime.timedelta(hours=1)
+            for hour in range(8):
+                t_0 = sTime + datetime.timedelta(hours=hour)
+                t_1 = t_0 + datetime.timedelta(hours=1)
 
-            tf  = np.logical_and(df_call_band['datetime'] >= t_0,df_call_band['datetime'] < t_1)
-            if np.count_nonzero(tf) == 0:
-                continue
-            df_tmp  = df_call_band[tf]
-            spotted_grids   = df_tmp.grid_0_4char.unique().tolist()
-            if grid in spotted_grids:
-                spotted_grids.remove(grid)
+                tf  = np.logical_and(df_call_band['datetime'] >= t_0,df_call_band['datetime'] < t_1)
+                if np.count_nonzero(tf) == 0:
+                    continue
+                df_tmp          = df_call_band[tf]
+                spotted_grids   = df_tmp.grid_0_4char.unique().tolist()
+                if grid in spotted_grids:
+                    spotted_grids.remove(grid)
 
-            spot_bonus += len(spotted_grids)
+                spot_bonus += len(spotted_grids)
 
-    df_out.ix[idx_a, 'spot_bonus'] = spot_bonus
+        df_out.loc[idx_a,source] = spot_bonus
 
-
+import ipdb; ipdb.set_trace()
 # -----------------------------------------------------------------------------
 # Finish calculating grand totals.
 # -----------------------------------------------------------------------------
