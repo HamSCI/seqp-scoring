@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os, shutil
 from collections import OrderedDict
 from datetime import datetime as dt
 import datetime
@@ -117,20 +118,21 @@ print('Output DataFrame created...')
 # each QSO that has been dropped. Then, reset the indexes.
 # -----------------------------------------------------------------------------
 
+
 for idx, row in df_seqp.iterrows():
     if idx + 1 == df_seqp.shape[0]:
         break
     elif (pd.isnull(row['call_0']) or
-    pd.isnull(row['call_1']) or
-    pd.isnull(row['mode']) or
-    pd.isnull(row['band']) or
-    pd.isnull(row['datetime']) or
-    pd.isnull(row['grid_0']) or
-    pd.isnull(row['grid_1']) or
-    len(row['grid_0']) < 4 or
-    len(row['grid_1']) < 4 or
-    grid_nomatch(row['grid_0']) or
-    grid_nomatch(row['grid_1'])):
+            pd.isnull(row['call_1']) or
+            pd.isnull(row['mode']) or
+            pd.isnull(row['band']) or
+            pd.isnull(row['datetime']) or
+            pd.isnull(row['grid_0']) or
+            pd.isnull(row['grid_1']) or
+            len(row['grid_0']) < 4 or
+            len(row['grid_1']) < 4 or
+            grid_nomatch(row['grid_0']) or
+            grid_nomatch(row['grid_1'])):
         df_seqp.drop(df_seqp.index[idx], inplace = True)
 
 df_seqp.reset_index(drop = True, inplace = True)
@@ -178,21 +180,51 @@ print('Duplicate removal complete...')
 # -----------------------------------------------------------------------------
 # RULE 1: Add 1 point for a Phone QSO. Add 2 points for a CW/Digital QSO.
 # -----------------------------------------------------------------------------
+modes_path  = 'modes'
+if os.path.exists(modes_path):
+    shutil.rmtree(modes_path)
+os.makedirs(modes_path)
 
-last = 0
+df_mode_list    = []
+modes           = df_seqp['mode'].unique()
+modes.sort()
+for mode in modes:
+    dft = df_seqp[df_seqp['mode'] == mode]
+    fname   = '{!s}.csv'.format(mode)
+    fpath   = os.path.join(modes_path,fname)
+    dft.to_csv(fpath,index=False)
 
-for idx_a, row_a in df_out.iterrows():
-    for idx_b, row_b in df_seqp.iloc[last:].iterrows():
-        last = idx_b
-        if row_a['call'] != row_b['call_0']:
-            break
-        elif (row_b['mode'] == 'PH' or
-        row_b['mode'] == 'SSB'):
-            df_out.ix[idx_a, 'ph_qso_pts']  += 1
-            df_out.ix[idx_a, 'ph_qso']      += 1
-        else:
-            df_out.ix[idx_a, 'cw_qso_pts']  += 2
-            df_out.ix[idx_a, 'cw_qso']      += 1
+    dct = OrderedDict()
+    dct['mode']     = mode
+    dct['count']    = len(dft)
+    df_mode_list.append(dct)
+
+df_mode = pd.DataFrame(df_mode_list)
+fpath   = os.path.join(modes_path,'mode_summary.csv')
+df_mode.to_csv(fpath,index=False)
+
+#modes     =   ['CW', 'PH', 'RY', 'FT', 'PK', 'PS', 'JT', 'RT', 'US', 'JT65', 'DG', 'DI', 'FM', 'OT', 'FT8', 'HE', 'SSB', 'VO', 'DA', 'PSK31']
+cw_modes   =   ['CW', 'RY', 'FT', 'PK', 'PS', 'JT', 'RT', 'US', 'JT65', 'DG', 'DI', 'OT', 'FT8', 'HE', 'DA', 'PSK31']
+ph_modes   =   ['PH', 'FM', 'SSB', 'VO']
+
+for rinx,row in df_out.iterrows():
+    tf      = df_seqp['call_0'] == row['call']
+    dft     = df_seqp[tf]
+
+    ph_qso  = 0
+    for ph_mode in ph_modes:
+        tf       = dft['mode'] == ph_mode
+        ph_qso  += np.sum(tf)
+
+    cw_qso  = 0
+    for cw_mode in cw_modes:
+        tf       = dft['mode'] == cw_mode
+        cw_qso  += np.sum(tf)
+
+    df_out.ix[rinx,'ph_qso']        = ph_qso
+    df_out.ix[rinx,'ph_qso_pts']    = ph_qso
+    df_out.ix[rinx,'cw_qso']        = cw_qso
+    df_out.ix[rinx,'cw_qso_pts']    = cw_qso*2
 
 print('Completed scoring for Rule 1...')
 
