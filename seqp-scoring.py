@@ -10,6 +10,9 @@ import re
 import time
 import tqdm
 
+bands = [1, 3, 7, 14, 21, 28, 50]
+pd.set_option('display.width', 1000)
+
 def sanity(df_out,call='W2NAF'):
     keys = []
     keys.append('call')
@@ -24,40 +27,41 @@ def sanity(df_out,call='W2NAF'):
     dft = df_out[ df_out['call'] == call][keys]
     return dft
 
-# -----------------------------------------------------------------------------
-# Miscellaneous variable/function declarations go here...
-# -----------------------------------------------------------------------------
+def scrub_dataframe(df):
+    keys = []
+    keys.append('call_0')
+    keys.append('call_1')
+    keys.append('mode')
+    keys.append('band')
+    keys.append('datetime')
+    keys.append('grid_0')
+    keys.append('grid_1')
+    keys.append('grid_0')
+    keys.append('grid_1')
+    df.dropna(subset=keys,inplace=True)
 
-bands = [1, 3, 7, 14, 21, 28, 50]
-pd.set_option('display.width', 1000)
+    print('Dropping QSOs with < 4 character grid squares...') 
+    tf = df['grid_0'].apply(lambda x: len(x) >= 4)
+    df = df[tf].copy()
 
-# -----------------------------------------------------------------------------
-# Define a grid square (regex) matching function to confirm valid grid squares.
-# -----------------------------------------------------------------------------
-
-def grid_nomatch(gs):
-    pattern = re.compile("^[A-z]{2}[0-9]{2}")
-    if pattern.match(gs):
-        return False
-    else:
-        return True
-
-# -----------------------------------------------------------------------------
-# Define an SQL query function to return the data in some row.
-# -----------------------------------------------------------------------------
+    tf = df['grid_1'].apply(lambda x: len(x) >= 4)
+    df = df[tf].copy()
+    return df
 
 def query(qry):
+    """
+    SQL query function to return the data in some row.
+    """
     crsr = db.cursor()
     crsr.execute(qry)
     results = crsr.fetchall()
     crsr.close()
     return results
 
-# -----------------------------------------------------------------------------
-# Define a function that checks if a number exists and is greater than zero.
-# -----------------------------------------------------------------------------
-
 def num_gtz(n):
+    """
+    Checks if a number exists and is greater than zero.
+    """
     try:
         if float(n) > 0:
             return True
@@ -134,25 +138,8 @@ print('Output DataFrame created...')
 # -----------------------------------------------------------------------------
 
 print('Dropping QSOs with null Required Fields...')
-keys = []
-keys.append('call_0')
-keys.append('call_1')
-keys.append('mode')
-keys.append('band')
-keys.append('datetime')
-keys.append('grid_0')
-keys.append('grid_1')
-keys.append('grid_0')
-keys.append('grid_1')
-df_seqp.dropna(subset=keys,inplace=True)
-
-print('Dropping QSOs with < 4 character grid squares...') 
-tf      = df_seqp['grid_0'].apply(lambda x: len(x) >= 4)
-df_seqp = df_seqp[tf].copy()
-
-tf      = df_seqp['grid_1'].apply(lambda x: len(x) >= 4)
-df_seqp = df_seqp[tf].copy()
-
+df      = scrub_dataframe(df)
+df_seqp = scrub_dataframe(df_seqp)
 
 # -----------------------------------------------------------------------------
 # RULE 1: Add 1 point for a Phone QSO. Add 2 points for a CW/Digital QSO.
@@ -304,7 +291,8 @@ print('SQL database loaded...')
 print('Computing Bonus Rules 4-8...')
 df_list = []
 
-for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_conductivity, dsn_fname FROM seqp_submissions')):
+this_query  = query('SELECT submitter_id, callsign, ground_conductivity, dsn_fname FROM seqp_submissions')
+for idx_a, result_a in tqdm.tqdm(enumerate(this_query),total=len(this_query)):
     row_dct = OrderedDict()
     row_dct['call']         = result_a[1].upper()
     row_dct['g_con']        = result_a[2]
@@ -386,47 +374,6 @@ for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_co
     df_list.append(row_dct)
 df_sub = pd.DataFrame(df_list)
 
-df_sub.sort_values(by = ['call']).reset_index(drop = True, inplace = True)
-
-keys = []
-keys.append('sk_has_160')
-keys.append('sk_has_80')
-keys.append('sk_has_60')
-keys.append('sk_has_40')
-keys.append('sk_has_30')
-keys.append('sk_has_20')
-keys.append('sk_has_17')
-keys.append('sk_has_15')
-keys.append('sk_has_12')
-keys.append('sk_has_10')
-keys.append('sk_has_6')
-sk = keys.copy()
-
-keys = []
-keys.append('wb_has_160')
-keys.append('wb_has_80')
-keys.append('wb_has_60')
-keys.append('wb_has_40')
-keys.append('wb_has_30')
-keys.append('wb_has_20')
-keys.append('wb_has_17')
-keys.append('wb_has_15')
-keys.append('wb_has_12')
-keys.append('wb_has_10')
-keys.append('wb_has_6')
-wb = keys.copy()
-
-keys = []
-keys.append('an_has_160')
-keys.append('an_has_80')
-keys.append('an_has_40')
-keys.append('an_has_20')
-keys.append('an_has_15')
-keys.append('an_has_10')
-keys.append('an_has_6')
-an = keys.copy()
-print('Additional DataFrame created...')
-
 # -----------------------------------------------------------------------------
 # BONUS 4: Add 50 points if ground conductivity is greater than 0.
 # "4. Provide ground conductivity (estimated from online conductivity maps, see
@@ -458,7 +405,7 @@ print('Additional DataFrame created...')
 #     log submission page."
 # -----------------------------------------------------------------------------
 
-for idx_a, row_a in df_out.iterrows():
+for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     for idx_b, row_b in df_sub.iterrows():
         if (row_a['call'] == row_b['call'] and
         num_gtz(row_b['g_con'])):
@@ -497,16 +444,17 @@ for idx_a, row_a in df_out.iterrows():
 print('Working on Bonus 9 (Spot Bonus)')
 sources = ['pskreporter','rbn','dxcluster']
 sTime   = datetime.datetime(2017,8,21,14)
+df['grid_0_4char'] = df['grid_0'].apply(lambda x: str(x)[:4])
 for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     call        = row_a['call']
     grid        = row_a['grid']
     for source in sources:
         spot_bonus  = 0
         for band in bands:
-            tf              = np.logical_and.reduce( (df['call_1'].upper() == call.upper(),
-                                                      df['band']           == band,
-                                                      df['source'].upper() == source.upper() ) )
-            df_call_band    = df[tf]
+            tf              = np.logical_and.reduce( (df['call_1'] == call,
+                                                      df['band']   == band,
+                                                      df['source'] == source) )
+            df_call_band    = df[tf].copy()
 
             for hour in range(8):
                 t_0 = sTime + datetime.timedelta(hours=hour)
