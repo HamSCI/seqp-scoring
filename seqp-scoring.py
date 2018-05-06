@@ -10,6 +10,20 @@ import re
 import time
 import tqdm
 
+def sanity(df_out,call='W2NAF'):
+    keys = []
+    keys.append('call')
+    keys.append('qsos_submitted')
+    #keys.append('qsos_dropped')
+    #keys.append('qsos_valid')
+    keys.append('cw_qso')
+    keys.append('cw_qso_pts')
+    keys.append('ph_qso',)
+    keys.append('ph_qso_pts')
+    #keys.append('total_qso_pts')
+    dft = df_out[ df_out['call'] == call][keys]
+    return dft
+
 # -----------------------------------------------------------------------------
 # Miscellaneous variable/function declarations go here...
 # -----------------------------------------------------------------------------
@@ -58,7 +72,7 @@ def num_gtz(n):
 
 df      = pd.read_csv('seqp_all_ctyChecked.csv.bz2', parse_dates = ['datetime'])
 tf      = df['source'] == 'seqp_logs'
-df_seqp = df[tf].copy().sort_values(by = ['call_0', 'call_1', 'mode', 'band', 'datetime']).reset_index(drop = True)
+df_seqp = df[tf].copy().sort_values(by = ['call_0', 'datetime']).reset_index(drop = True)
 
 print('CSV read in complete...')
 
@@ -77,18 +91,19 @@ for call in unique_calls:
     tf  = df_seqp['call_0'] == call
     df_tmp  = df_seqp[tf]
     grids   = df_tmp['grid_0'].unique()
-    if len(grids) != 1:
-        import ipdb; ipdb.set_trace()
-    else:
-        grid    = grids[0]
-        if pd.isnull(grid):
-            continue
+    assert len(grids) == 1, 'More than 1 grid square for {!s}'.format(call)
         
-        grid    = grid[:4].upper()
+    grid    = grids[0]
+    if pd.isnull(grid):
+        continue
+
+    grid    = grid[:4].upper()
 
     row_dct = OrderedDict()
     row_dct['call']                 = call
     row_dct['grid']                 = grid
+    row_dct['qsos_submitted']       = np.sum(df_seqp['call_0']==call)
+    row_dct['dupes']                = 0
     row_dct['cw_qso_pts']           = 0
     row_dct['ph_qso_pts']           = 0
     row_dct['cw_qso']               = 0
@@ -118,68 +133,32 @@ print('Output DataFrame created...')
 # each QSO that has been dropped. Then, reset the indexes.
 # -----------------------------------------------------------------------------
 
+print('Dropping QSOs with null Required Fields...')
+keys = []
+keys.append('call_0')
+keys.append('call_1')
+keys.append('mode')
+keys.append('band')
+keys.append('datetime')
+keys.append('grid_0')
+keys.append('grid_1')
+keys.append('grid_0')
+keys.append('grid_1')
+df_seqp.dropna(subset=keys,inplace=True)
 
-for idx, row in df_seqp.iterrows():
-    if idx + 1 == df_seqp.shape[0]:
-        break
-    elif (pd.isnull(row['call_0']) or
-            pd.isnull(row['call_1']) or
-            pd.isnull(row['mode']) or
-            pd.isnull(row['band']) or
-            pd.isnull(row['datetime']) or
-            pd.isnull(row['grid_0']) or
-            pd.isnull(row['grid_1']) or
-            len(row['grid_0']) < 4 or
-            len(row['grid_1']) < 4 or
-            grid_nomatch(row['grid_0']) or
-            grid_nomatch(row['grid_1'])):
-        df_seqp.drop(df_seqp.index[idx], inplace = True)
+print('Dropping QSOs with < 4 character grid squares...') 
+tf      = df_seqp['grid_0'].apply(lambda x: len(x) >= 4)
+df_seqp = df_seqp[tf].copy()
 
-df_seqp.reset_index(drop = True, inplace = True)
+tf      = df_seqp['grid_1'].apply(lambda x: len(x) >= 4)
+df_seqp = df_seqp[tf].copy()
 
-print('NaN removal complete...')
-
-# -----------------------------------------------------------------------------
-# Check to see if the next QSO has similar callsigns, a similar band and mode,
-# and if the next entry is within 10 minutes of the last. If any of those
-# DO NOT apply to the next QSO, continue with the next QSO. If all of the above
-# apply, cycle through the next/similar QSOs, dropping them from the DataFrame.
-# -----------------------------------------------------------------------------
-
-drop = True
-last = 0
-
-while drop == True:
-    df_seqp.reset_index(drop = True, inplace = True)
-    for idx_a, row_a in df_seqp.iloc[last:].iterrows():
-        last = idx_a
-        if idx_a + 1 == df_seqp.shape[0]:
-            drop = False
-            break
-        elif (row_a['call_0'] != df_seqp.at[idx_a + 1, 'call_0'] or
-        row_a['call_1'] != df_seqp.at[idx_a + 1, 'call_1'] or
-        row_a['mode'] != df_seqp.at[idx_a + 1, 'mode'] or
-        row_a['band'] != df_seqp.at[idx_a + 1, 'band'] or
-        (df_seqp.at[idx_a + 1, 'datetime'] - \
-        row_a['datetime']).seconds >= 600):
-            continue
-        else:
-            for idx_b, row_b in df_seqp.iloc[idx_a + 1:].iterrows():
-                if (row_a['call_0'] == row_b['call_0'] and
-                row_a['call_1'] == row_b['call_1'] and
-                row_a['mode'] == row_b['mode'] and
-                row_a['band'] == row_b['band'] and
-                (row_b['datetime'] - row_a['datetime']).seconds < 600):
-                    df_seqp.drop(df_seqp.index[idx_b], inplace = True)
-                else:
-                    break
-            break
-
-print('Duplicate removal complete...')
 
 # -----------------------------------------------------------------------------
 # RULE 1: Add 1 point for a Phone QSO. Add 2 points for a CW/Digital QSO.
 # -----------------------------------------------------------------------------
+
+print('Saving QSO Mode Summary and QSO by Mode files...')
 modes_path  = 'modes'
 if os.path.exists(modes_path):
     shutil.rmtree(modes_path)
@@ -192,6 +171,7 @@ for mode in modes:
     dft = df_seqp[df_seqp['mode'] == mode]
     fname   = '{!s}.csv'.format(mode)
     fpath   = os.path.join(modes_path,fname)
+    print('  --> {!s}'.format(fpath))
     dft.to_csv(fpath,index=False)
 
     dct = OrderedDict()
@@ -200,14 +180,59 @@ for mode in modes:
     df_mode_list.append(dct)
 
 df_mode = pd.DataFrame(df_mode_list)
-fpath   = os.path.join(modes_path,'mode_summary.csv')
+fpath   = os.path.join(modes_path,'000_mode_summary.csv')
+print('  --> {!s}'.format(fpath))
 df_mode.to_csv(fpath,index=False)
 
+print('Dropping QSOs without valid modes...')
+# These are all of the modes that have been submitted:
 #modes     =   ['CW', 'PH', 'RY', 'FT', 'PK', 'PS', 'JT', 'RT', 'US', 'JT65', 'DG', 'DI', 'FM', 'OT', 'FT8', 'HE', 'SSB', 'VO', 'DA', 'PSK31']
-cw_modes   =   ['CW', 'RY', 'FT', 'PK', 'PS', 'JT', 'RT', 'US', 'JT65', 'DG', 'DI', 'OT', 'FT8', 'HE', 'DA', 'PSK31']
-ph_modes   =   ['PH', 'FM', 'SSB', 'VO']
 
-for rinx,row in df_out.iterrows():
+# These are the accepted modes according to published rules:
+cw_modes   =   ['CW', 'RY', 'FT', 'PK', 'JT']
+ph_modes   =   ['PH']
+
+# Drop QSOs without valid modes.
+valid_modes = cw_modes + ph_modes
+tf          = df_seqp['mode'].apply(lambda x: x in valid_modes)
+df_seqp     = df_seqp[tf].copy()
+
+# -----------------------------------------------------------------------------
+# DUPES
+#
+# "Duplicate contacts on the same band and mode as a previous QSO with a 
+#  station are allowed after 10 minutes have elapsed since the previous QSO 
+#  with that station. The same station may be worked on all SEQP bands and
+#  modes."
+# -----------------------------------------------------------------------------
+print('Checking for dupes...')
+df_seqp['dupe'] = False
+for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
+    call    = row['call']
+    dupes   = 0
+    for band in bands:
+        for mode in valid_modes:
+            tf  = np.logical_and.reduce( (df_seqp['call_0']==call,df_seqp['band']==band,df_seqp['mode']==mode) )
+            dft = df_seqp[tf]
+
+            for call_1 in dft['call_1'].unique():
+                tf      = dft['call_1'] == call_1
+                dft_1   = dft[tf]
+
+                delta   = dft_1['datetime'].diff()
+                bad     = delta < datetime.timedelta(minutes=10)
+                bad_inx = delta[bad].index
+
+                if len(bad_inx) > 0:
+                    df_seqp.loc[bad_inx,'dupe'] = True
+                    dupes += len(bad_inx)
+    df_out.loc[rinx,'dupes']    = dupes
+
+tf      = np.logical_not(df_seqp['dupe'])
+df_seqp = df_seqp[tf].copy()
+
+print('Score valide QSOs...')
+for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     tf      = df_seqp['call_0'] == row['call']
     dft     = df_seqp[tf]
 
@@ -221,12 +246,10 @@ for rinx,row in df_out.iterrows():
         tf       = dft['mode'] == cw_mode
         cw_qso  += np.sum(tf)
 
-    df_out.ix[rinx,'ph_qso']        = ph_qso
-    df_out.ix[rinx,'ph_qso_pts']    = ph_qso
-    df_out.ix[rinx,'cw_qso']        = cw_qso
-    df_out.ix[rinx,'cw_qso_pts']    = cw_qso*2
-
-print('Completed scoring for Rule 1...')
+    df_out.loc[rinx,'ph_qso']        = ph_qso
+    df_out.loc[rinx,'ph_qso_pts']    = ph_qso
+    df_out.loc[rinx,'cw_qso']        = cw_qso
+    df_out.loc[rinx,'cw_qso_pts']    = cw_qso*2
 
 # -----------------------------------------------------------------------------
 # Parse grid_1 and create a new column: 'grid_4char' for use in Rule 2 scoring.
