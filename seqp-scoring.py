@@ -197,39 +197,39 @@ valid_modes = cw_modes + ph_modes
 tf          = df_seqp['mode'].apply(lambda x: x in valid_modes)
 df_seqp     = df_seqp[tf].copy()
 
-# -----------------------------------------------------------------------------
-# DUPES
+## -----------------------------------------------------------------------------
+## DUPES
+##
+## "Duplicate contacts on the same band and mode as a previous QSO with a 
+##  station are allowed after 10 minutes have elapsed since the previous QSO 
+##  with that station. The same station may be worked on all SEQP bands and
+##  modes."
+## -----------------------------------------------------------------------------
+#print('Checking for dupes...')
+#df_seqp['dupe'] = False
+#for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
+#    call    = row['call']
+#    dupes   = 0
+#    for band in bands:
+#        for mode in valid_modes:
+#            tf  = np.logical_and.reduce( (df_seqp['call_0']==call,df_seqp['band']==band,df_seqp['mode']==mode) )
+#            dft = df_seqp[tf]
 #
-# "Duplicate contacts on the same band and mode as a previous QSO with a 
-#  station are allowed after 10 minutes have elapsed since the previous QSO 
-#  with that station. The same station may be worked on all SEQP bands and
-#  modes."
-# -----------------------------------------------------------------------------
-print('Checking for dupes...')
-df_seqp['dupe'] = False
-for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
-    call    = row['call']
-    dupes   = 0
-    for band in bands:
-        for mode in valid_modes:
-            tf  = np.logical_and.reduce( (df_seqp['call_0']==call,df_seqp['band']==band,df_seqp['mode']==mode) )
-            dft = df_seqp[tf]
-
-            for call_1 in dft['call_1'].unique():
-                tf      = dft['call_1'] == call_1
-                dft_1   = dft[tf]
-
-                delta   = dft_1['datetime'].diff()
-                bad     = delta < datetime.timedelta(minutes=10)
-                bad_inx = delta[bad].index
-
-                if len(bad_inx) > 0:
-                    df_seqp.loc[bad_inx,'dupe'] = True
-                    dupes += len(bad_inx)
-    df_out.loc[rinx,'dupes']    = dupes
-
-tf      = np.logical_not(df_seqp['dupe'])
-df_seqp = df_seqp[tf].copy()
+#            for call_1 in dft['call_1'].unique():
+#                tf      = dft['call_1'] == call_1
+#                dft_1   = dft[tf]
+#
+#                delta   = dft_1['datetime'].diff()
+#                bad     = delta < datetime.timedelta(minutes=10)
+#                bad_inx = delta[bad].index
+#
+#                if len(bad_inx) > 0:
+#                    df_seqp.loc[bad_inx,'dupe'] = True
+#                    dupes += len(bad_inx)
+#    df_out.loc[rinx,'dupes']    = dupes
+#
+#tf      = np.logical_not(df_seqp['dupe'])
+#df_seqp = df_seqp[tf].copy()
 
 print('Score valide QSOs...')
 for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
@@ -252,40 +252,26 @@ for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     df_out.loc[rinx,'cw_qso_pts']    = cw_qso*2
 
 # -----------------------------------------------------------------------------
-# Parse grid_1 and create a new column: 'grid_4char' for use in Rule 2 scoring.
-# -----------------------------------------------------------------------------
-
-grid_4char = []
-
-for idx, row in df_seqp.iterrows():
-    s = str(row['grid_1'])[:4]
-    grid_4char.append(s)
-
-df_seqp['grid_4char'] = grid_4char
-
-print('Completed grid square parsing...')
-
-# -----------------------------------------------------------------------------
 # RULE 2: 4-character grid squares are counted once per band.
 # -----------------------------------------------------------------------------
+print('Calculating grid square multiplier...')
+df_seqp['grid_0_4char'] = df_seqp['grid_0'].apply(lambda x: str(x)[:4])
+df_seqp['grid_1_4char'] = df_seqp['grid_1'].apply(lambda x: str(x)[:4])
 
-df_seqp.sort_values(by = ['call_0', 'band', 'grid_4char']).reset_index(drop = True, inplace = True)
-
-for rinx, row in df_out.iterrows():
+for rinx, row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     call = row['call']
-    if pd.isnull(call):
-        continue
+    if pd.isnull(call): continue
     for band in bands:
-       tf = np.logical_and(df_seqp['call_0'] == call, df_seqp['band'] == band)
-       df_tmp = df_seqp[tf]
-       if len(df_tmp) == 0:
-           continue
+       tf       = np.logical_and(df_seqp['call_0'] == call, df_seqp['band'] == band)
+       df_tmp   = df_seqp[tf]
+       if len(df_tmp) == 0: continue
 
-       gs = len(df_tmp['grid_4char'].unique())
-       key = 'gs_{:d}'.format(band)
+       gs       = len(df_tmp['grid_1_4char'].unique())
+       key      = 'gs_{:d}'.format(band)
        df_out.loc[rinx,key] = gs
 
 print('Completed scoring for Rule 2...')
+import ipdb; ipdb.set_trace()
 
 # -----------------------------------------------------------------------------
 # BONUS 1-3: Add 100 * 3 points to any callsign listed in df_out.
@@ -594,9 +580,12 @@ print('Columns reorganized...')
 # Export the DataFrame to a CSV file, 'seqp_scores.csv'.
 # -----------------------------------------------------------------------------
 
-df_out = df_out[keys].copy()
-df_out.to_csv('seqp_scores.csv',index=False)
 
-print('Output CSV exported successfully!')
+print("Don't forget to turn dupe checking back on!")
+#df_out = df_out[keys].copy()
+#df_out.to_csv('seqp_scores.csv',index=False)
+#
+#print('Output CSV exported successfully!')
+
 
 import ipdb; ipdb.set_trace()
