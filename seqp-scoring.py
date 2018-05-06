@@ -205,39 +205,39 @@ valid_modes = cw_modes + ph_modes
 tf          = df_seqp['mode'].apply(lambda x: x in valid_modes)
 df_seqp     = df_seqp[tf].copy()
 
-## -----------------------------------------------------------------------------
-## DUPES
-##
-## "Duplicate contacts on the same band and mode as a previous QSO with a 
-##  station are allowed after 10 minutes have elapsed since the previous QSO 
-##  with that station. The same station may be worked on all SEQP bands and
-##  modes."
-## -----------------------------------------------------------------------------
-#print('Checking for dupes...')
-#df_seqp['dupe'] = False
-#for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
-#    call    = row['call']
-#    dupes   = 0
-#    for band in bands:
-#        for mode in valid_modes:
-#            tf  = np.logical_and.reduce( (df_seqp['call_0']==call,df_seqp['band']==band,df_seqp['mode']==mode) )
-#            dft = df_seqp[tf]
+# -----------------------------------------------------------------------------
+# DUPES
 #
-#            for call_1 in dft['call_1'].unique():
-#                tf      = dft['call_1'] == call_1
-#                dft_1   = dft[tf]
-#
-#                delta   = dft_1['datetime'].diff()
-#                bad     = delta < datetime.timedelta(minutes=10)
-#                bad_inx = delta[bad].index
-#
-#                if len(bad_inx) > 0:
-#                    df_seqp.loc[bad_inx,'dupe'] = True
-#                    dupes += len(bad_inx)
-#    df_out.loc[rinx,'dupes']    = dupes
-#
-#tf      = np.logical_not(df_seqp['dupe'])
-#df_seqp = df_seqp[tf].copy()
+# "Duplicate contacts on the same band and mode as a previous QSO with a 
+#  station are allowed after 10 minutes have elapsed since the previous QSO 
+#  with that station. The same station may be worked on all SEQP bands and
+#  modes."
+# -----------------------------------------------------------------------------
+print('Checking for dupes...')
+df_seqp['dupe'] = False
+for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
+    call    = row['call']
+    dupes   = 0
+    for band in bands:
+        for mode in valid_modes:
+            tf  = np.logical_and.reduce( (df_seqp['call_0']==call,df_seqp['band']==band,df_seqp['mode']==mode) )
+            dft = df_seqp[tf]
+
+            for call_1 in dft['call_1'].unique():
+                tf      = dft['call_1'] == call_1
+                dft_1   = dft[tf]
+
+                delta   = dft_1['datetime'].diff()
+                bad     = delta < datetime.timedelta(minutes=10)
+                bad_inx = delta[bad].index
+
+                if len(bad_inx) > 0:
+                    df_seqp.loc[bad_inx,'dupe'] = True
+                    dupes += len(bad_inx)
+    df_out.loc[rinx,'dupes']    = dupes
+
+tf      = np.logical_not(df_seqp['dupe'])
+df_seqp = df_seqp[tf].copy()
 
 print('Score valid QSOs...')
 for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
@@ -504,19 +504,32 @@ for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     qsos_valid  = np.count_nonzero(tf)
     assert (row['cw_dig_qso']+row['ph_qso']==qsos_valid),'qsos_valid count mismatch for {!s}'.format(call)
 
-import ipdb; ipdb.set_trace()
-df_out['qsos_valid']    = df_out['cw_dig_qso'] + df_out['ph_qso']
-df_out['total_gs']      = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
-                          df_out['gs_14'] + df_out['gs_21'] + \
-                          df_out['gs_28'] + df_out['gs_50']
-df_out['total']         = df_out['total_qso_pts'] * df_out['total_gs'] + \
-                          df_out['operated_totality'] + \
-                          df_out['operated_outdoors'] + \
-                          df_out['operated_public'] + \
-                          df_out['ground_conductivity'] + \
-                          df_out['antenna_design'] + df_out['erpd'] + \
-                          df_out['skimmers'] + df_out['iq_data'] +\
-                          df_out['spot_bonus']
+# Total Valid QSOs
+keys                    = ['cw_dig_qso','ph_qso']
+df_out['qsos_valid']    = df_out[keys].sum(1)
+
+# Grid Square Bonus Total
+keys                    = ['gs_{!s}'.format(x) for x in bands]
+df_out['total_gs']      = df_out[keys].sum(1)
+
+# Spot Bonus Total
+keys = ['pskreporter','rbn','dxcluster']
+df_out['spot_bonus']   = df_out[keys].sum(1)
+
+# Total Bonus Points
+keys =[]
+keys.append('operated_totality')
+keys.append('operated_outdoors')
+keys.append('operated_public')
+keys.append('ground_conductivity')
+keys.append('antenna_design')
+keys.append('erpd')
+keys.append('skimmers')
+keys.append('iq_data')
+keys.append('spot_bonus')
+df_out['total_bonus']   = df_out[keys].sum(1)
+
+df_out['total']         = (df_out['total_qso_pts'] * df_out['total_gs']) + df_out['total_bonus']
 df_out['qsos_dropped']  = df_out['qsos_submitted'] - df_out['qsos_valid']
 
 print('Completed scoring summations...')
@@ -530,11 +543,11 @@ keys.append('call')
 keys.append('qsos_submitted')
 keys.append('qsos_dropped')
 keys.append('qsos_valid')
-keys.append('cw_dig_qso')
-keys.append('cw_dig_qso_pts')
+keys.append('dupes')
 keys.append('ph_qso',)
+keys.append('cw_dig_qso')
 keys.append('ph_qso_pts')
-keys.append('total_qso_pts')
+keys.append('cw_dig_qso_pts')
 keys.append('gs_1')
 keys.append('gs_3')
 keys.append('gs_7')
@@ -542,7 +555,6 @@ keys.append('gs_14')
 keys.append('gs_21')
 keys.append('gs_28')
 keys.append('gs_50',)
-keys.append('total_gs')
 keys.append('operated_totality')
 keys.append('operated_outdoors')
 keys.append('operated_public')
@@ -554,6 +566,10 @@ keys.append('iq_data')
 keys.append('pskreporter')
 keys.append('rbn')
 keys.append('dxcluster')
+keys.append('total_spots')
+keys.append('total_qso_pts')
+keys.append('total_gs')
+keys.append('total_bonus')
 keys.append('total')
 
 print('Columns reorganized...')
@@ -561,13 +577,8 @@ print('Columns reorganized...')
 # -----------------------------------------------------------------------------
 # Export the DataFrame to a CSV file, 'seqp_scores.csv'.
 # -----------------------------------------------------------------------------
+df_out = df_out[keys].copy()
+df_out.to_csv('seqp_scores.csv',index=False)
 
-
-print("Don't forget to turn dupe checking back on!")
-#df_out = df_out[keys].copy()
-#df_out.to_csv('seqp_scores.csv',index=False)
-#
-#print('Output CSV exported successfully!')
-
-
+print('Output CSV exported successfully!')
 import ipdb; ipdb.set_trace()
