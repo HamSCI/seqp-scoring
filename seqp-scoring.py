@@ -16,8 +16,8 @@ def sanity(df_out,call='W2NAF'):
     keys.append('qsos_submitted')
     #keys.append('qsos_dropped')
     #keys.append('qsos_valid')
-    keys.append('cw_qso')
-    keys.append('cw_qso_pts')
+    keys.append('cw_dig_qso')
+    keys.append('cw_dig_qso_pts')
     keys.append('ph_qso',)
     keys.append('ph_qso_pts')
     #keys.append('total_qso_pts')
@@ -103,14 +103,13 @@ for call in unique_calls:
     row_dct['grid']                 = grid
     row_dct['qsos_submitted']       = np.sum(df_seqp['call_0']==call)
     row_dct['dupes']                = 0
-    row_dct['cw_qso_pts']           = 0
+    row_dct['cw_dig_qso_pts']       = 0
     row_dct['ph_qso_pts']           = 0
-    row_dct['cw_qso']               = 0
+    row_dct['cw_dig_qso']           = 0
     row_dct['ph_qso']               = 0
     for band in bands:
         key = 'gs_{:d}'.format(band)
         row_dct[key]                = 0
-    row_dct['qsos_submitted']       = np.count_nonzero(df_seqp['call_0'] == call)
     row_dct['operated_totality']    = 0
     row_dct['operated_outdoors']    = 0
     row_dct['operated_public']      = 0
@@ -242,15 +241,17 @@ for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
         tf       = dft['mode'] == ph_mode
         ph_qso  += np.sum(tf)
 
-    cw_qso  = 0
+    cw_dig_qso  = 0
     for cw_mode in cw_modes:
         tf       = dft['mode'] == cw_mode
-        cw_qso  += np.sum(tf)
+        cw_dig_qso  += np.sum(tf)
 
-    df_out.loc[rinx,'ph_qso']        = ph_qso
-    df_out.loc[rinx,'ph_qso_pts']    = ph_qso
-    df_out.loc[rinx,'cw_qso']        = cw_qso
-    df_out.loc[rinx,'cw_qso_pts']    = cw_qso*2
+    df_out.loc[rinx,'ph_qso']           = ph_qso
+    df_out.loc[rinx,'ph_qso_pts']       = ph_qso
+    df_out.loc[rinx,'cw_dig_qso']       = cw_dig_qso
+    df_out.loc[rinx,'cw_dig_qso_pts']   = cw_dig_qso*2
+    df_out.loc[rinx,'total_qso_pts']    = ph_qso + cw_dig_qso*2
+
 
 # -----------------------------------------------------------------------------
 # RULE 2: 4-character grid squares are counted once per band.
@@ -300,7 +301,7 @@ print('SQL database loaded...')
 # -----------------------------------------------------------------------------
 # Prepare a DataFrame derived from various tables in the hamsci_rsrch database.
 # -----------------------------------------------------------------------------
-
+print('Computing Bonus Rules 4-8...')
 df_list = []
 
 for idx_a, result_a in enumerate(query('SELECT submitter_id, callsign, ground_conductivity, dsn_fname FROM seqp_submissions')):
@@ -485,10 +486,8 @@ for idx_a, row_a in df_out.iterrows():
             int(bool(row_b['wb_has_15'])) + int(bool(row_b['wb_has_12'])) + \
             int(bool(row_b['wb_has_10'])) + int(bool(row_b['wb_has_6']))) * 50
 
-print('Completed scoring for Bonuses 4-8...')
-
 # -----------------------------------------------------------------------------
-# BONUS Rule Number 9
+# BONUS 9
 # "9. One bonus point will be awarded for each band and clock hour during which
 #     your signal was spotted in a grid square other than your own by the RBN,
 #     PSKReporter, or DX spotting network. There are eight clock hours and 7
@@ -504,10 +503,10 @@ for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     for source in sources:
         spot_bonus  = 0
         for band in bands:
-            tf              = np.logical_and.reduce( (df_seqp['call_1'].upper() == call.upper(),
-                                                      df_seqp['band']           == band,
-                                                      df_seqp['source'].upper() == source.upper() ) )
-            df_call_band    = df_seqp[tf]
+            tf              = np.logical_and.reduce( (df['call_1'].upper() == call.upper(),
+                                                      df['band']           == band,
+                                                      df['source'].upper() == source.upper() ) )
+            df_call_band    = df[tf]
 
             for hour in range(8):
                 t_0 = sTime + datetime.timedelta(hours=hour)
@@ -525,13 +524,19 @@ for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
 
         df_out.loc[idx_a,source] = spot_bonus
 
-import ipdb; ipdb.set_trace()
 # -----------------------------------------------------------------------------
 # Finish calculating grand totals.
 # -----------------------------------------------------------------------------
 
-df_out['total_qso_pts'] = df_out['cw_qso_pts'] + df_out['ph_qso_pts']
-df_out['qsos_valid']    = df_out['cw_qso'] + df_out['ph_qso']
+# Double-check QSO valid count.
+for rinx,row in tqdm.tqdm(df_out.iteritems(),total=len(df_out)):
+    call        = row['call']
+    tf          = df_seqp['call_0'] == call
+    qsos_valid  = np.count_nonzero(tf)
+    assert (row['cw_dig_qso']+row['ph_qso']==qsos_valid),'qsos_valid count mismatch for {!s}'.format(call)
+
+import ipdb; ipdb.set_trace()
+df_out['qsos_valid']    = df_out['cw_dig_qso'] + df_out['ph_qso']
 df_out['total_gs']      = df_out['gs_1'] + df_out['gs_3'] + df_out['gs_7'] + \
                           df_out['gs_14'] + df_out['gs_21'] + \
                           df_out['gs_28'] + df_out['gs_50']
@@ -556,8 +561,8 @@ keys.append('call')
 keys.append('qsos_submitted')
 keys.append('qsos_dropped')
 keys.append('qsos_valid')
-keys.append('cw_qso')
-keys.append('cw_qso_pts')
+keys.append('cw_dig_qso')
+keys.append('cw_dig_qso_pts')
 keys.append('ph_qso',)
 keys.append('ph_qso_pts')
 keys.append('total_qso_pts')
@@ -577,7 +582,9 @@ keys.append('antenna_design')
 keys.append('erpd')
 keys.append('skimmers')
 keys.append('iq_data')
-keys.append('spot_bonus')
+keys.append('pskreporter')
+keys.append('rbn')
+keys.append('dxcluster')
 keys.append('total')
 
 print('Columns reorganized...')
