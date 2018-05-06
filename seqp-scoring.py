@@ -13,17 +13,38 @@ import tqdm
 bands = [1, 3, 7, 14, 21, 28, 50]
 pd.set_option('display.width', 1000)
 
-def sanity(df_out,call='W2NAF'):
-    keys = []
-    keys.append('call')
-    keys.append('qsos_submitted')
-    #keys.append('qsos_dropped')
-    #keys.append('qsos_valid')
-    keys.append('cw_dig_qso')
-    keys.append('cw_dig_qso_pts')
-    keys.append('ph_qso',)
-    keys.append('ph_qso_pts')
-    #keys.append('total_qso_pts')
+def sanity(df_out,call='W2NAF',keys=None):
+    if keys is None:
+        keys = []
+        keys.append('call')
+        keys.append('qsos_submitted')
+        keys.append('qsos_dropped')
+        keys.append('qsos_valid')
+        keys.append('cw_dig_qso')
+        keys.append('cw_dig_qso_pts')
+        keys.append('ph_qso',)
+        keys.append('ph_qso_pts')
+        keys.append('total_qso_pts')
+        keys.append('gs_1')
+        keys.append('gs_3')
+        keys.append('gs_7')
+        keys.append('gs_14')
+        keys.append('gs_21')
+        keys.append('gs_28')
+        keys.append('gs_50',)
+        keys.append('total_gs')
+        keys.append('operated_totality')
+        keys.append('operated_outdoors')
+        keys.append('operated_public')
+        keys.append('ground_conductivity')
+        keys.append('antenna_design')
+        keys.append('erpd')
+        keys.append('skimmers')
+        keys.append('iq_data')
+        keys.append('pskreporter')
+        keys.append('rbn')
+        keys.append('dxcluster')
+        keys.append('total')
     dft = df_out[ df_out['call'] == call][keys]
     return dft
 
@@ -445,16 +466,16 @@ print('Working on Bonus 9 (Spot Bonus)')
 sources = ['pskreporter','rbn','dxcluster']
 sTime   = datetime.datetime(2017,8,21,14)
 df['grid_0_4char'] = df['grid_0'].apply(lambda x: str(x)[:4])
-for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
-    call        = row_a['call']
-    grid        = row_a['grid']
-    for source in sources:
+for source in sources:
+    df_source   = df[df['source']==source]
+    print('  --> {!s}'.format(source))
+    for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
+        call        = row_a['call']
+        grid        = row_a['grid']
+        df_call     = df_source[df_source['call_1'] == call]
         spot_bonus  = 0
         for band in bands:
-            tf              = np.logical_and.reduce( (df['call_1'] == call,
-                                                      df['band']   == band,
-                                                      df['source'] == source) )
-            df_call_band    = df[tf].copy()
+            df_call_band    = df_call[df_call['band'] == band]
 
             for hour in range(8):
                 t_0 = sTime + datetime.timedelta(hours=hour)
@@ -477,7 +498,7 @@ for idx_a, row_a in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
 # -----------------------------------------------------------------------------
 
 # Double-check QSO valid count.
-for rinx,row in tqdm.tqdm(df_out.iteritems(),total=len(df_out)):
+for rinx,row in tqdm.tqdm(df_out.iterrows(),total=len(df_out)):
     call        = row['call']
     tf          = df_seqp['call_0'] == call
     qsos_valid  = np.count_nonzero(tf)
