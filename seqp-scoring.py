@@ -13,41 +13,6 @@ import tqdm
 bands = [1, 3, 7, 14, 21, 28, 50]
 pd.set_option('display.width', 1000)
 
-def sanity(df_out,call='W2NAF',keys=None):
-    if keys is None:
-        keys = []
-        keys.append('call')
-        keys.append('qsos_submitted')
-        keys.append('qsos_dropped')
-        keys.append('qsos_valid')
-        keys.append('cw_dig_qso')
-        keys.append('cw_dig_qso_pts')
-        keys.append('ph_qso',)
-        keys.append('ph_qso_pts')
-        keys.append('total_qso_pts')
-        keys.append('gs_1')
-        keys.append('gs_3')
-        keys.append('gs_7')
-        keys.append('gs_14')
-        keys.append('gs_21')
-        keys.append('gs_28')
-        keys.append('gs_50',)
-        keys.append('total_gs')
-        keys.append('operated_totality')
-        keys.append('operated_outdoors')
-        keys.append('operated_public')
-        keys.append('ground_conductivity')
-        keys.append('antenna_design')
-        keys.append('erpd')
-        keys.append('skimmers')
-        keys.append('iq_data')
-        keys.append('pskreporter')
-        keys.append('rbn')
-        keys.append('dxcluster')
-        keys.append('total')
-    dft = df_out[ df_out['call'] == call][keys]
-    return dft
-
 def scrub_dataframe(df):
     keys = []
     keys.append('call_0')
@@ -68,6 +33,11 @@ def scrub_dataframe(df):
     tf = df['grid_1'].apply(lambda x: len(x) >= 4)
     df = df[tf].copy()
     return df
+
+def clean_call(call):
+    if not pd.isnull(call):
+        call = call.replace('/','-').upper()
+    return call
 
 def query(qry):
     """
@@ -315,7 +285,7 @@ df_list = []
 this_query  = query('SELECT submitter_id, callsign, ground_conductivity, dsn_fname FROM seqp_submissions')
 for idx_a, result_a in tqdm.tqdm(enumerate(this_query),total=len(this_query)):
     row_dct = OrderedDict()
-    row_dct['call']         = result_a[1].upper()
+    row_dct['call']         = clean_call(result_a[1])
     row_dct['g_con']        = result_a[2]
     row_dct['dsn_fname']    = result_a[3]
     # TODO: Make a for loop for this.
