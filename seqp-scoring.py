@@ -93,8 +93,13 @@ for call in unique_calls:
 
     grid    = grid[:4].upper()
 
+    single_op   = df_tmp['single_op'].unique()
+    single_op   = bool(single_op[0])
+    print(call,single_op)
+
     row_dct = OrderedDict()
     row_dct['call']                 = call
+    row_dct['single_op']            = single_op
     row_dct['grid']                 = grid
     row_dct['qsos_submitted']       = np.sum(df_seqp['call_0']==call)
     row_dct['dupes']                = 0
@@ -510,6 +515,11 @@ print('Completed scoring summations...')
 
 keys = []
 keys.append('call')
+keys.append('total_qso_pts')
+keys.append('total_gs')
+keys.append('total_bonus')
+keys.append('total')
+keys.append('single_op')
 keys.append('qsos_submitted')
 keys.append('qsos_dropped')
 keys.append('qsos_valid')
@@ -537,10 +547,6 @@ keys.append('pskreporter')
 keys.append('rbn')
 keys.append('dxcluster')
 keys.append('total_spot_bonus')
-keys.append('total_qso_pts')
-keys.append('total_gs')
-keys.append('total_bonus')
-keys.append('total')
 
 print('Columns reorganized...')
 
